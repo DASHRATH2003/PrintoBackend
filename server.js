@@ -1,12 +1,17 @@
+import dotenv from 'dotenv';
+
+// Configure dotenv FIRST before importing other modules
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 
 // Import routes
 import authRoutes from './routes/authRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 
 // Import middleware
 import { requestLogger } from './middleware/auth.js';
@@ -14,25 +19,21 @@ import { requestLogger } from './middleware/auth.js';
 // Import utilities
 import { initializeAdmin, initializeSampleData } from './utils/initializeData.js';
 
-dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
 
-// Middleware
+// Middleware - Allow all origins for testing
 app.use(cors({
-  origin: [
-    'http://localhost:3000', // Frontend URL
-    'http://localhost:3001', 
-    'https://checkout.razorpay.com',
-    'https://api.razorpay.com'
-  ],
+  origin: true, // Allow all origins for testing
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json());
+
+// Additional CORS handling for preflight requests
+app.options('*', cors());
 app.use(requestLogger);
 
 // MongoDB Connection with enhanced logging
@@ -67,6 +68,7 @@ mongoose.connection.on('disconnected', () => {
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

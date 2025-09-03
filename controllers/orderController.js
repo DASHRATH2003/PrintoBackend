@@ -1,5 +1,5 @@
 import Order from '../models/Order.js';
-import { sendOrderConfirmationEmail } from '../utils/emailService.js';
+// Email service removed as per user request
 
 // Create new order
 export const createOrder = async (req, res) => {
@@ -84,28 +84,8 @@ export const createOrder = async (req, res) => {
     
     const savedOrder = await newOrder.save();
     
-    // Send confirmation email if email is provided
-    if (customerEmail) {
-      try {
-        const emailResult = await sendOrderConfirmationEmail({
-          orderId: savedOrder.orderId,
-          paymentId: savedOrder.paymentId,
-          customerName: savedOrder.customerName,
-          customerEmail: savedOrder.customerEmail,
-          total: savedOrder.total,
-          items: savedOrder.items
-        });
-        
-        if (emailResult.success) {
-          console.log('✅ Confirmation email sent successfully');
-        } else {
-          console.log('⚠️ Email sending failed:', emailResult.error);
-        }
-      } catch (emailError) {
-        console.error('⚠️ Email service error:', emailError.message);
-        // Don't fail the order creation if email fails
-      }
-    }
+    // Email service removed as per user request
+    console.log('✅ Order saved successfully without email notification');
     
     res.status(201).json({
       message: 'Order created successfully',
