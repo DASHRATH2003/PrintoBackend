@@ -16,6 +16,8 @@ router.get('/test', (req, res) => {
   res.json({ message: 'Test route working!' });
 });
 
+
+
 // GET /api/orders/payment/:paymentId - Get order by payment ID (public for tracking)
 router.get('/payment/:paymentId', (req, res, next) => {
   console.log('Route matched: /payment/:paymentId with paymentId:', req.params.paymentId);

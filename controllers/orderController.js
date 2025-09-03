@@ -1,5 +1,4 @@
 import Order from '../models/Order.js';
-// Email service removed as per user request
 
 // Create new order
 export const createOrder = async (req, res) => {
@@ -84,8 +83,7 @@ export const createOrder = async (req, res) => {
     
     const savedOrder = await newOrder.save();
     
-    // Email service removed as per user request
-    console.log('✅ Order saved successfully without email notification');
+    console.log('✅ Order saved successfully');
     
     res.status(201).json({
       message: 'Order created successfully',
@@ -143,6 +141,8 @@ export const getOrderByPaymentId = async (req, res) => {
   }
 };
 
+
+
 // Update order status
 export const updateOrderStatus = async (req, res) => {
   try {
@@ -158,6 +158,8 @@ export const updateOrderStatus = async (req, res) => {
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
+    
+    console.log('✅ Order status updated successfully');
     
     res.json({
       message: 'Order status updated successfully',
