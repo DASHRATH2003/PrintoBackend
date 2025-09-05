@@ -6,6 +6,11 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Import routes
 import authRoutes from './routes/authRoutes.js';
@@ -24,14 +29,34 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
 
-// Middleware - Allow all origins for testing
+// CORS Configuration - Allow both production and local development
+const allowedOrigins = [
+  'https://princo.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  process.env.FRONTEND_URL // Dynamic from environment
+].filter(Boolean); // Remove any undefined values
+
 app.use(cors({
-  origin: true, // Allow all origins for testing
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('❌ CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json());
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Additional CORS handling for preflight requests
 app.options('*', cors());
@@ -99,8 +124,8 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log('⭐ Health check available at: http://localhost:5000/api/health');
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log('⭐ Health check available at: https://printobackend.onrender.com/api/health');
 });
 
 // Initialize data after server starts

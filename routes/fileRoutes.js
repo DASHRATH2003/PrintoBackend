@@ -1,5 +1,5 @@
 import express from 'express';
-import { upload } from '../utils/cloudinaryConfig.js';
+import { upload } from '../utils/localStorage.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 import {
   uploadFile,
