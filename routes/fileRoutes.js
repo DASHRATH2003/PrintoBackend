@@ -36,6 +36,8 @@ router.delete('/:id', deleteFile); // Delete file
 
 // Admin only routes
 router.get('/', requireAdmin, getAllFiles); // Get all files (admin only)
+router.get('/admin/all', requireAdmin, getAllFiles); // Get all files (admin only)
+router.get('/admin/stats', requireAdmin, getFileStats); // Get file statistics (admin only)
 router.get('/stats/overview', requireAdmin, getFileStats); // Get file statistics (admin only)
 
 export default router;
