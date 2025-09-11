@@ -4,6 +4,7 @@ import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 import {
   uploadFile,
   uploadMultipleFiles,
+  uploadMultipleFilesPublic,
   getAllFiles,
   getPublicFiles,
   getUserFiles,
@@ -18,7 +19,7 @@ const router = express.Router();
 
 // Public routes
 router.get('/public', getPublicFiles); // Get all public files
-router.post('/upload-multiple-public', upload.array('files', 10), uploadMultipleFiles); // Public upload multiple files (max 10)
+router.post('/upload-multiple-public', upload.array('files', 10), uploadMultipleFilesPublic); // Public upload multiple files (max 10)
 router.get('/download/:id', authenticateToken, downloadFile); // Download file (requires auth)
 
 // Protected routes (require authentication)

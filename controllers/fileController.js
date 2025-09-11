@@ -78,7 +78,9 @@ export const uploadMultipleFiles = async (req, res) => {
         tags: tags ? tags.split(',').map(tag => tag.trim()) : []
       });
       const savedFile = await fileData.save();
-      await savedFile.populate('uploadedBy', 'name email');
+      if (userId) {
+        await savedFile.populate('uploadedBy', 'name email');
+      }
       uploadedFiles.push(savedFile);
 
       // Optionally delete local file
@@ -99,6 +101,54 @@ export const uploadMultipleFiles = async (req, res) => {
     });
   }
 };
+
+// Upload multiple files to Cloudinary (Public endpoint - no auth required)
+export const uploadMultipleFilesPublic = async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, message: 'No files uploaded' });
+    }
+    const { description, tags, category } = req.body;
+
+    const uploadedFiles = [];
+    for (const file of req.files) {
+      // Upload each file to Cloudinary
+      const result = await cloudinary.uploader.upload(file.path, { resource_type: 'auto' });
+
+      const fileData = new File({
+        originalName: file.originalname,
+        fileName: result.public_id,
+        filePath: '',
+        fileUrl: result.secure_url,
+        fileType: file.mimetype,
+        fileSize: file.size,
+        uploadedBy: null, // No user for public uploads
+        category: category || getFileCategory(file.mimetype),
+        description: description || '',
+        isPublic: true, // Always public for this endpoint
+        tags: tags ? tags.split(',').map(tag => tag.trim()) : []
+      });
+      const savedFile = await fileData.save();
+      uploadedFiles.push(savedFile);
+
+      // Optionally delete local file
+      await deleteLocalFile(file.path);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `${uploadedFiles.length} files uploaded successfully`,
+      files: uploadedFiles
+    });
+  } catch (error) {
+    console.error('Public multiple files upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading files',
+      error: error.message
+    });
+  }
+}
 
 // Get all files (admin only)
 export const getAllFiles = async (req, res) => {
