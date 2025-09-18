@@ -140,6 +140,11 @@ router.get('/single/:id', async (req, res) => {
 // Create new product at base path (Admin only) - for frontend compatibility
 router.post('/', authenticateToken, requireAdmin, upload.single('image'), async (req, res) => {
   try {
+    console.log('🔥 Product creation started');
+    console.log('📝 Request body:', req.body);
+    console.log('📁 Request file:', req.file ? 'File present' : 'No file');
+    console.log('👤 Admin ID:', req.admin?.id);
+    
     const {
       name,
       description,
@@ -186,7 +191,7 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
       stockQuantity: stockQuantity ? parseInt(stockQuantity) : 0,
       tags: tags ? JSON.parse(tags) : [],
       specifications: specifications ? JSON.parse(specifications) : {},
-      createdBy: req.admin.id
+      createdBy: req.user.id
     };
 
     // Add category-specific fields
@@ -204,8 +209,12 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
       productData.businessInfo = businessInfo ? JSON.parse(businessInfo) : {};
     }
 
+    console.log('💾 Final product data:', productData);
+    console.log('🏗️ Creating product instance...');
     const product = new Product(productData);
+    console.log('💾 Saving product to database...');
     await product.save();
+    console.log('✅ Product saved successfully!');
 
     res.status(201).json({
       success: true,
@@ -271,7 +280,7 @@ router.post('/create', authenticateToken, requireAdmin, upload.single('image'), 
       stockQuantity: stockQuantity ? parseInt(stockQuantity) : 0,
       tags: tags ? JSON.parse(tags) : [],
       specifications: specifications ? JSON.parse(specifications) : {},
-      createdBy: req.admin.id
+      createdBy: req.user.id
     };
 
     // Add category-specific fields
@@ -320,7 +329,7 @@ router.put('/update/:id', authenticateToken, requireAdmin, upload.single('image'
     }
 
     const updateData = { ...req.body };
-    updateData.updatedBy = req.admin.id;
+    updateData.updatedBy = req.user.id;
 
     // Handle image upload if provided
     if (req.file) {
@@ -412,7 +421,7 @@ router.patch('/toggle-status/:id', authenticateToken, requireAdmin, async (req, 
     }
 
     product.isActive = !product.isActive;
-    product.updatedBy = req.admin.id;
+    product.updatedBy = req.user.id;
     await product.save();
 
     res.json({
