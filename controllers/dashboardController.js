@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import Order from '../models/Order.js';
+import Product from '../models/Product.js';
 
 // Get dashboard statistics
 export const getDashboardStats = async (req, res) => {
@@ -11,12 +12,14 @@ export const getDashboardStats = async (req, res) => {
     ]);
     const totalRevenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
     const pendingOrders = await Order.countDocuments({ status: 'pending' });
+    const totalProducts = await Product.countDocuments({});
     
     res.json({
       totalCustomers,
       totalOrders,
       totalRevenue,
-      pendingOrders
+      pendingOrders,
+      totalProducts
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
