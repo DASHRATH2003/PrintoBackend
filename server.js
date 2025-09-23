@@ -35,6 +35,8 @@ const allowedOrigins = [
   'https://princo.vercel.app',
   'http://localhost:3000',
   'http://localhost:3001',
+  'http://localhost:3002', // Current frontend port
+  'http://localhost:5173', // Vite default port
   process.env.FRONTEND_URL // Dynamic from environment
 ].filter(Boolean); // Remove any undefined values
 
@@ -55,6 +57,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // For parsing application/x-www-form-urlencoded
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

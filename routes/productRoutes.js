@@ -10,6 +10,52 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
+// Get all products (no category filter)
+router.get('/', async (req, res) => {
+  try {
+    const { page = 1, limit = 50, search, featured, inStock } = req.query;
+    
+    const query = { isActive: true };
+    
+    if (search) {
+      query.$text = { $search: search };
+    }
+    
+    if (featured !== undefined) {
+      query.isFeatured = featured === 'true';
+    }
+    
+    if (inStock !== undefined) {
+      query.inStock = inStock === 'true';
+    }
+    
+    const products = await Product.find(query)
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+    
+    const total = await Product.countDocuments(query);
+    
+    res.json({
+      success: true,
+      data: products,
+      pagination: {
+        current: page,
+        pages: Math.ceil(total / limit),
+        total
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching all products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching all products',
+      error: error.message
+    });
+  }
+});
+
 // Get all products by category
 router.get('/:category', async (req, res) => {
   try {
@@ -143,7 +189,7 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
     console.log('🔥 Product creation started');
     console.log('📝 Request body:', req.body);
     console.log('📁 Request file:', req.file ? 'File present' : 'No file');
-    console.log('👤 Admin ID:', req.admin?.id);
+    console.log('👤 User ID:', req.user?.id);
     
     const {
       name,
@@ -179,6 +225,26 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
       imageUrl = result.secure_url;
     }
 
+    // Safely parse JSON fields
+    let parsedTags = [];
+    let parsedSpecifications = {};
+    let parsedPrintingOptions = {};
+    let parsedBusinessInfo = {};
+    
+    try {
+      parsedTags = tags ? (typeof tags === 'string' ? JSON.parse(tags) : tags) : [];
+    } catch (e) {
+      console.warn('Failed to parse tags, using empty array:', e.message);
+      parsedTags = [];
+    }
+    
+    try {
+      parsedSpecifications = specifications ? (typeof specifications === 'string' ? JSON.parse(specifications) : specifications) : {};
+    } catch (e) {
+      console.warn('Failed to parse specifications, using empty object:', e.message);
+      parsedSpecifications = {};
+    }
+
     const productData = {
       name,
       description,
@@ -189,9 +255,9 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
       subcategory: subcategory || '',
       image: imageUrl,
       stockQuantity: stockQuantity ? parseInt(stockQuantity) : 0,
-      tags: tags ? JSON.parse(tags) : [],
-      specifications: specifications ? JSON.parse(specifications) : {},
-      createdBy: req.user.id
+      tags: parsedTags,
+      specifications: parsedSpecifications,
+      createdBy: req.user.userId
     };
 
     // Add category-specific fields
@@ -202,11 +268,21 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
     }
 
     if (category.toLowerCase() === 'printing') {
-      productData.printingOptions = printingOptions ? JSON.parse(printingOptions) : {};
+      try {
+        productData.printingOptions = printingOptions ? (typeof printingOptions === 'string' ? JSON.parse(printingOptions) : printingOptions) : {};
+      } catch (e) {
+        console.warn('Failed to parse printingOptions, using empty object:', e.message);
+        productData.printingOptions = {};
+      }
     }
 
     if (category.toLowerCase() === 'localmarket') {
-      productData.businessInfo = businessInfo ? JSON.parse(businessInfo) : {};
+      try {
+        productData.businessInfo = businessInfo ? (typeof businessInfo === 'string' ? JSON.parse(businessInfo) : businessInfo) : {};
+      } catch (e) {
+        console.warn('Failed to parse businessInfo, using empty object:', e.message);
+        productData.businessInfo = {};
+      }
     }
 
     console.log('💾 Final product data:', productData);
@@ -268,6 +344,26 @@ router.post('/create', authenticateToken, requireAdmin, upload.single('image'), 
       imageUrl = result.secure_url;
     }
 
+    // Safely parse JSON fields
+    let parsedTags = [];
+    let parsedSpecifications = {};
+    let parsedPrintingOptions = {};
+    let parsedBusinessInfo = {};
+    
+    try {
+      parsedTags = tags ? (typeof tags === 'string' ? JSON.parse(tags) : tags) : [];
+    } catch (e) {
+      console.warn('Failed to parse tags, using empty array:', e.message);
+      parsedTags = [];
+    }
+    
+    try {
+      parsedSpecifications = specifications ? (typeof specifications === 'string' ? JSON.parse(specifications) : specifications) : {};
+    } catch (e) {
+      console.warn('Failed to parse specifications, using empty object:', e.message);
+      parsedSpecifications = {};
+    }
+
     const productData = {
       name,
       description,
@@ -278,9 +374,9 @@ router.post('/create', authenticateToken, requireAdmin, upload.single('image'), 
       subcategory: subcategory || '',
       image: imageUrl,
       stockQuantity: stockQuantity ? parseInt(stockQuantity) : 0,
-      tags: tags ? JSON.parse(tags) : [],
-      specifications: specifications ? JSON.parse(specifications) : {},
-      createdBy: req.user.id
+      tags: parsedTags,
+      specifications: parsedSpecifications,
+      createdBy: req.user.userId
     };
 
     // Add category-specific fields
@@ -291,11 +387,21 @@ router.post('/create', authenticateToken, requireAdmin, upload.single('image'), 
     }
 
     if (category.toLowerCase() === 'printing') {
-      productData.printingOptions = printingOptions ? JSON.parse(printingOptions) : {};
+      try {
+        productData.printingOptions = printingOptions ? (typeof printingOptions === 'string' ? JSON.parse(printingOptions) : printingOptions) : {};
+      } catch (e) {
+        console.warn('Failed to parse printingOptions, using empty object:', e.message);
+        productData.printingOptions = {};
+      }
     }
 
     if (category.toLowerCase() === 'localmarket') {
-      productData.businessInfo = businessInfo ? JSON.parse(businessInfo) : {};
+      try {
+        productData.businessInfo = businessInfo ? (typeof businessInfo === 'string' ? JSON.parse(businessInfo) : businessInfo) : {};
+      } catch (e) {
+        console.warn('Failed to parse businessInfo, using empty object:', e.message);
+        productData.businessInfo = {};
+      }
     }
 
     const product = new Product(productData);
@@ -329,7 +435,7 @@ router.put('/update/:id', authenticateToken, requireAdmin, upload.single('image'
     }
 
     const updateData = { ...req.body };
-    updateData.updatedBy = req.user.id;
+    updateData.updatedBy = req.user.userId;
 
     // Handle image upload if provided
     if (req.file) {
@@ -421,7 +527,7 @@ router.patch('/toggle-status/:id', authenticateToken, requireAdmin, async (req, 
     }
 
     product.isActive = !product.isActive;
-    product.updatedBy = req.user.id;
+    product.updatedBy = req.user.userId;
     await product.save();
 
     res.json({
