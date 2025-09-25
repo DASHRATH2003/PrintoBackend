@@ -184,7 +184,7 @@ router.get('/single/:id', async (req, res) => {
 });
 
 // Create new product at base path (Admin only) - for frontend compatibility
-router.post('/', authenticateToken, requireAdmin, upload.single('image'), async (req, res) => {
+router.post('/', authenticateToken, requireAdmin, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'images', maxCount: 10 }]), async (req, res) => {
   try {
     console.log('🔥 Product creation started');
     console.log('📝 Request body:', req.body);
@@ -211,9 +211,10 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
     } = req.body;
 
     let imageUrl = 'https://via.placeholder.com/400x300?text=No+Image';
+    let additionalImages = [];
     
-    // Upload image to Cloudinary if provided
-    if (req.file) {
+    // Upload main image to Cloudinary if provided
+    if (req.files && req.files.image && req.files.image[0]) {
       const result = await new Promise((resolve, reject) => {
         cloudinary.uploader.upload_stream(
           { resource_type: 'auto' },
@@ -221,9 +222,25 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
             if (error) reject(error);
             else resolve(result);
           }
-        ).end(req.file.buffer);
+        ).end(req.files.image[0].buffer);
       });
       imageUrl = result.secure_url;
+    }
+
+    // Upload additional images if provided
+    if (req.files && req.files.images && req.files.images.length > 0) {
+      for (const file of req.files.images) {
+        const result = await new Promise((resolve, reject) => {
+          cloudinary.uploader.upload_stream(
+            { resource_type: 'auto' },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          ).end(file.buffer);
+        });
+        additionalImages.push(result.secure_url);
+      }
     }
 
     // Safely parse JSON fields
@@ -270,6 +287,7 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
       category: category.toLowerCase(),
       subcategory: subcategory || '',
       image: imageUrl,
+      images: additionalImages,
       stockQuantity: stockQuantity ? parseInt(stockQuantity) : 0,
       tags: parsedTags,
       specifications: parsedSpecifications,
@@ -443,7 +461,7 @@ router.post('/create', authenticateToken, requireAdmin, upload.single('image'), 
 });
 
 // Update product (Admin only)
-router.put('/update/:id', authenticateToken, requireAdmin, upload.single('image'), async (req, res) => {
+router.put('/update/:id', authenticateToken, requireAdmin, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'images', maxCount: 10 }]), async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     
@@ -457,8 +475,8 @@ router.put('/update/:id', authenticateToken, requireAdmin, upload.single('image'
     const updateData = { ...req.body };
     updateData.updatedBy = req.user.userId;
 
-    // Handle image upload if provided
-    if (req.file) {
+    // Handle main image upload if provided
+    if (req.files && req.files.image && req.files.image[0]) {
       const result = await new Promise((resolve, reject) => {
         cloudinary.uploader.upload_stream(
           { resource_type: 'auto' },
@@ -466,9 +484,33 @@ router.put('/update/:id', authenticateToken, requireAdmin, upload.single('image'
             if (error) reject(error);
             else resolve(result);
           }
-        ).end(req.file.buffer);
+        ).end(req.files.image[0].buffer);
       });
       updateData.image = result.secure_url;
+    }
+
+    // Handle additional images upload if provided
+    if (req.files && req.files.images && req.files.images.length > 0) {
+      const additionalImages = [];
+      for (const file of req.files.images) {
+        const result = await new Promise((resolve, reject) => {
+          cloudinary.uploader.upload_stream(
+            { resource_type: 'auto' },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          ).end(file.buffer);
+        });
+        additionalImages.push(result.secure_url);
+      }
+      
+      // Merge new images with existing ones
+      if (product.images && product.images.length > 0) {
+        updateData.images = [...product.images, ...additionalImages];
+      } else {
+        updateData.images = additionalImages;
+      }
     }
 
     // Parse JSON fields if they exist
