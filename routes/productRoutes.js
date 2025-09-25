@@ -202,6 +202,7 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
       stockQuantity,
       tags,
       specifications,
+      colorVariants,
       newsContent,
       newsDate,
       newsAuthor,
@@ -228,6 +229,7 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
     // Safely parse JSON fields
     let parsedTags = [];
     let parsedSpecifications = {};
+    let parsedColorVariants = {};
     let parsedPrintingOptions = {};
     let parsedBusinessInfo = {};
     
@@ -244,6 +246,20 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
       console.warn('Failed to parse specifications, using empty object:', e.message);
       parsedSpecifications = {};
     }
+    
+    try {
+      parsedColorVariants = colorVariants ? (typeof colorVariants === 'string' ? JSON.parse(colorVariants) : colorVariants) : {};
+    } catch (e) {
+      console.warn('Failed to parse colorVariants, using empty object:', e.message);
+      parsedColorVariants = {};
+    }
+    
+    try {
+      parsedColorVariants = colorVariants ? (typeof colorVariants === 'string' ? JSON.parse(colorVariants) : colorVariants) : {};
+    } catch (e) {
+      console.warn('Failed to parse colorVariants, using empty object:', e.message);
+      parsedColorVariants = {};
+    }
 
     const productData = {
       name,
@@ -257,6 +273,7 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
       stockQuantity: stockQuantity ? parseInt(stockQuantity) : 0,
       tags: parsedTags,
       specifications: parsedSpecifications,
+      colorVariants: parsedColorVariants,
       createdBy: req.user.userId
     };
 
@@ -321,6 +338,7 @@ router.post('/create', authenticateToken, requireAdmin, upload.single('image'), 
       stockQuantity,
       tags,
       specifications,
+      colorVariants,
       newsContent,
       newsDate,
       newsAuthor,
@@ -347,6 +365,7 @@ router.post('/create', authenticateToken, requireAdmin, upload.single('image'), 
     // Safely parse JSON fields
     let parsedTags = [];
     let parsedSpecifications = {};
+    let parsedColorVariants = {};
     let parsedPrintingOptions = {};
     let parsedBusinessInfo = {};
     
@@ -376,6 +395,7 @@ router.post('/create', authenticateToken, requireAdmin, upload.single('image'), 
       stockQuantity: stockQuantity ? parseInt(stockQuantity) : 0,
       tags: parsedTags,
       specifications: parsedSpecifications,
+      colorVariants: parsedColorVariants,
       createdBy: req.user.userId
     };
 
@@ -457,6 +477,9 @@ router.put('/update/:id', authenticateToken, requireAdmin, upload.single('image'
     }
     if (updateData.specifications && typeof updateData.specifications === 'string') {
       updateData.specifications = JSON.parse(updateData.specifications);
+    }
+    if (updateData.colorVariants && typeof updateData.colorVariants === 'string') {
+      updateData.colorVariants = JSON.parse(updateData.colorVariants);
     }
     if (updateData.printingOptions && typeof updateData.printingOptions === 'string') {
       updateData.printingOptions = JSON.parse(updateData.printingOptions);

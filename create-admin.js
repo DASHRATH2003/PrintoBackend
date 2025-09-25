@@ -1,7 +1,7 @@
 // Create admin user for testing
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import User from './models/User.js';
+import User from './Backend/models/User.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
