@@ -20,7 +20,7 @@ const router = express.Router();
 // Public routes
 router.get('/public', getPublicFiles); // Get all public files
 router.post('/upload-multiple-public', upload.array('files', 10), uploadMultipleFilesPublic); // Public upload multiple files (max 10)
-router.get('/download/:id', authenticateToken, downloadFile); // Download file (requires auth)
+router.get('/download/:id', downloadFile); // Download file (public files accessible without auth, private files require auth)
 
 // Protected routes (require authentication)
 router.use(authenticateToken);

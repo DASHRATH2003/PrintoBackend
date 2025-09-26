@@ -28,8 +28,7 @@ const productSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    required: true,
-    enum: ['emart', 'localmarket', 'printing', 'news']
+    required: true
   },
   subcategory: {
     type: String,

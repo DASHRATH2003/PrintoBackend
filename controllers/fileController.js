@@ -244,24 +244,38 @@ export const getFile = async (req, res) => {
 export const downloadFile = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('Download request received for file ID:', id);
+    console.log('Request user:', req.user);
+    
     const file = await File.findById(id);
     
     if (!file) {
+      console.log('File not found');
       return res.status(404).json({
         success: false,
         message: 'File not found'
       });
     }
 
+    console.log('File found:', file.originalName, 'isPublic:', file.isPublic);
+
     // Check if user has permission to download the file
     if (!file.isPublic && (!req.user || file.uploadedBy.toString() !== req.user.id)) {
+      console.log('Access denied - private file and no valid user');
       return res.status(403).json({
         success: false,
-        message: 'Access denied'
+        message: 'Access denied - Please login to download private files'
       });
     }
 
+    console.log('Access granted - proceeding with download');
+
+    // Increment download count
+    file.downloadCount = (file.downloadCount || 0) + 1;
+    await file.save();
+
     // Redirect to Cloudinary URL for download
+    console.log('Redirecting to:', file.fileUrl);
     res.redirect(file.fileUrl);
   } catch (error) {
     console.error('Download file error:', error);
@@ -370,13 +384,25 @@ export const getFileStats = async (req, res) => {
     const publicFiles = await File.countDocuments({ isPublic: true });
     const privateFiles = await File.countDocuments({ isPublic: false });
     
+    // Get total downloads
+    const totalDownloadsResult = await File.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalDownloads: { $sum: '$downloadCount' }
+        }
+      }
+    ]);
+    const totalDownloads = totalDownloadsResult.length > 0 ? totalDownloadsResult[0].totalDownloads : 0;
+    
     // Get file counts by category
     const categoryStats = await File.aggregate([
       {
         $group: {
           _id: '$category',
           count: { $sum: 1 },
-          totalSize: { $sum: '$fileSize' }
+          totalSize: { $sum: '$fileSize' },
+          totalDownloads: { $sum: '$downloadCount' }
         }
       }
     ]);
@@ -399,6 +425,7 @@ export const getFileStats = async (req, res) => {
         publicFiles,
         privateFiles,
         totalSize,
+        totalDownloads,
         categoryStats
       }
     });
