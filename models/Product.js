@@ -1,136 +1,85 @@
 import mongoose from 'mongoose';
 
-// Product Schema for E-mart, Local Market, Printing, and Today News
+// Simplified Product Schema - only essential fields for displaying products
 const productSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    trim: true
+    trim: true,
+    maxlength: 200
   },
   description: {
     type: String,
-    required: true
+    required: true,
+    trim: true,
+    maxlength: 2000
   },
   price: {
     type: Number,
     required: true,
     min: 0
   },
+  // Offer price (discounted price) if product is on offer
+  offerPrice: {
+    type: Number,
+    min: 0,
+    default: null
+  },
   originalPrice: {
     type: Number,
+    min: 0,
     default: null
   },
   discount: {
     type: Number,
-    default: 0,
     min: 0,
-    max: 100
+    max: 100,
+    default: 0
   },
   category: {
     type: String,
-    required: true
+    required: true,
+    enum: ['emart', 'localmarket', 'printing', 'news'],
+    lowercase: true
   },
   subcategory: {
     type: String,
+    trim: true,
     default: ''
   },
+
+
+  // ✅ Separate variant lists
+  colorVarients: {
+    type: [String],
+    default: []
+  },
+  sizeVarients: {
+    type: [String],
+    default: []
+  },
+
   image: {
     type: String,
-    required: true
+    default: 'https://via.placeholder.com/400x300?text=No+Image'
   },
-  images: [{
-    type: String
-  }],
+  images: [{ type: String }],
+
   inStock: {
     type: Boolean,
     default: true
   },
   stockQuantity: {
     type: Number,
-    default: 0
-  },
-  tags: [{
-    type: String,
-    trim: true
-  }],
-  specifications: {
-    type: Map,
-    of: String,
-    default: {}
-  },
-  colorVariants: {
-    type: Object,
-    default: {}
-  },
-  rating: {
-    type: Number,
-    default: 0,
     min: 0,
-    max: 5
-  },
-  reviewCount: {
-    type: Number,
     default: 0
   },
   isActive: {
     type: Boolean,
     default: true
   },
-  isFeatured: {
-    type: Boolean,
-    default: false
-  },
-  // For News category specific fields
-  newsContent: {
-    type: String,
-    default: ''
-  },
-  newsDate: {
-    type: Date,
-    default: null
-  },
-  newsAuthor: {
-    type: String,
-    default: ''
-  },
-  // For Printing category specific fields
-  printingOptions: {
-    paperType: {
-      type: String,
-      default: ''
-    },
-    size: {
-      type: String,
-      default: ''
-    },
-    color: {
-      type: String,
-      default: ''
-    },
-    quantity: {
-      type: Number,
-      default: 1
-    }
-  },
-  // For Local Market specific fields
-  businessInfo: {
-    businessName: {
-      type: String,
-      default: ''
-    },
-    address: {
-      type: String,
-      default: ''
-    },
-    phone: {
-      type: String,
-      default: ''
-    },
-    email: {
-      type: String,
-      default: ''
-    }
-  },
+
+  // Audit fields
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -145,23 +94,9 @@ const productSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for better performance
+// Basic indexes for performance
 productSchema.index({ category: 1, isActive: 1 });
 productSchema.index({ name: 'text', description: 'text' });
-productSchema.index({ price: 1 });
-productSchema.index({ createdAt: -1 });
-
-// Virtual for discounted price
-productSchema.virtual('discountedPrice').get(function() {
-  if (this.discount > 0) {
-    return this.price - (this.price * this.discount / 100);
-  }
-  return this.price;
-});
-
-// Ensure virtual fields are serialized
-productSchema.set('toJSON', { virtuals: true });
 
 const Product = mongoose.model('Product', productSchema);
-
 export default Product;

@@ -8,6 +8,8 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'customer'], default: 'customer' },
   orderCount: { type: Number, default: 0 },
   totalSpent: { type: Number, default: 0 },
+  loginCount: { type: Number, default: 0 },
+  lastLogin: { type: Date },
   createdAt: { type: Date, default: Date.now }
 });
 

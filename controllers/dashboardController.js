@@ -30,7 +30,7 @@ export const getDashboardStats = async (req, res) => {
 export const getCustomers = async (req, res) => {
   try {
     const customers = await User.find({ role: 'customer' })
-      .select('name email orderCount totalSpent createdAt')
+      .select('name email orderCount totalSpent createdAt loginCount lastLogin')
       .sort({ createdAt: -1 });
     
     res.json(customers);
