@@ -49,9 +49,12 @@ const productSchema = new mongoose.Schema({
   },
 
 
-  // ✅ Separate variant lists
+  // ✅ Color-wise images mapping: [{ color, images: [url] }]
   colorVarients: {
-    type: [String],
+    type: [{
+      color: { type: String, required: true, trim: true, lowercase: true },
+      images: [{ type: String, required: true }]
+    }],
     default: []
   },
   sizeVarients: {

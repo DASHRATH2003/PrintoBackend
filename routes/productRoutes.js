@@ -114,6 +114,48 @@ router.post('/', authenticateToken, requireAdmin, upload.fields([{ name: 'image'
       }
     };
 
+    // Parse color->image index map (JSON string or object), e.g. { "red": [0,2], "blue": 1 }
+    const parseImagesColorMap = (raw) => {
+      if (!raw) return {};
+      try {
+        if (typeof raw === 'string') {
+          const trimmed = raw.trim();
+          if (!trimmed) return {};
+          return JSON.parse(trimmed);
+        }
+        if (typeof raw === 'object') return raw;
+        return {};
+      } catch (e) {
+        return {};
+      }
+    };
+
+    // Build array of { color, images: [url] } from colors list and uploaded images
+    const buildColorVarientsObjects = (colors, images, colorMapObj) => {
+      const variants = [];
+      const normColor = (c) => String(c).trim().toLowerCase();
+      const keys = colorMapObj && typeof colorMapObj === 'object' ? Object.keys(colorMapObj) : [];
+      if (keys.length > 0) {
+        for (const key of keys) {
+          const color = normColor(key);
+          let indices = colorMapObj[key];
+          if (!Array.isArray(indices)) {
+            indices = String(indices).split(',').map(s => s.trim()).filter(Boolean);
+          }
+          const idxNums = indices.map(n => parseInt(n, 10)).filter(n => !Number.isNaN(n) && n >= 0 && n < images.length);
+          const urls = idxNums.map(i => images[i]);
+          variants.push({ color, images: urls });
+        }
+      } else if (Array.isArray(colors) && colors.length > 0) {
+        colors.forEach((c, i) => {
+          const color = normColor(c);
+          const url = images?.[i] ? [images[i]] : [];
+          variants.push({ color, images: url });
+        });
+      }
+      return variants;
+    };
+
     const productData = {
       name: req.body.name,
       description: req.body.description,
@@ -121,6 +163,7 @@ router.post('/', authenticateToken, requireAdmin, upload.fields([{ name: 'image'
       offerPrice: req.body.offerPrice !== undefined && req.body.offerPrice !== '' ? parseFloat(req.body.offerPrice) : null,
       category: req.body.category.toLowerCase(),
       subcategory: req.body.subcategory || '',
+      // Temporarily keep colors list; will convert to objects after image upload
       colorVarients: parseList(req.body.colorVarients),
       sizeVarients: parseList(req.body.sizeVarients),
       inStock: req.body.inStock !== undefined ? req.body.inStock === 'true' : true,
@@ -151,6 +194,17 @@ router.post('/', authenticateToken, requireAdmin, upload.fields([{ name: 'image'
       }
     }
 
+    // Now convert colorVarients into array of { color, images } using imagesColorMap or fallback
+    const imagesColorMapObj = parseImagesColorMap(req.body.imagesColorMap);
+    const colorsList = Array.isArray(productData.colorVarients) ? productData.colorVarients : [];
+    // Debug logs to trace incoming mapping and built variants
+    console.log('🟦 [Create] Raw imagesColorMap:', req.body.imagesColorMap);
+    console.log('🟦 [Create] Parsed imagesColorMap object:', imagesColorMapObj);
+    console.log('🟦 [Create] Uploaded images count:', (productData.images || []).length);
+    console.log('🟦 [Create] Parsed colors list:', colorsList);
+    productData.colorVarients = buildColorVarientsObjects(colorsList, productData.images || [], imagesColorMapObj);
+    console.log('🟩 [Create] Built colorVarients objects:', productData.colorVarients);
+
     const product = new Product(productData);
     const savedProduct = await product.save();
 
@@ -174,22 +228,24 @@ router.put('/update/:id', authenticateToken, requireAdmin, upload.fields([{ name
     if (req.body.offerPrice !== undefined) {
       updateData.offerPrice = req.body.offerPrice !== '' ? parseFloat(req.body.offerPrice) : null;
     }
-    if (req.body.colorVarients !== undefined) {
-      const parseList = (raw) => {
-        if (!raw) return [];
-        try {
-          if (typeof raw === 'string') {
-            const trimmed = raw.trim();
-            if (trimmed.startsWith('[')) return JSON.parse(trimmed).map(String);
-            return trimmed.split(',').map(s => s.trim()).filter(Boolean);
-          }
-          if (Array.isArray(raw)) return raw.map(String);
-          return [String(raw)].filter(Boolean);
-        } catch (e) {
-          return String(raw).split(',').map(s => s.trim()).filter(Boolean);
+    // Parse colors list for update (if provided)
+    const parseListUpdate = (raw) => {
+      if (!raw) return [];
+      try {
+        if (typeof raw === 'string') {
+          const trimmed = raw.trim();
+          if (trimmed.startsWith('[')) return JSON.parse(trimmed).map(String);
+          return trimmed.split(',').map(s => s.trim()).filter(Boolean);
         }
-      };
-      updateData.colorVarients = parseList(req.body.colorVarients);
+        if (Array.isArray(raw)) return raw.map(String);
+        return [String(raw)].filter(Boolean);
+      } catch (e) {
+        return String(raw).split(',').map(s => s.trim()).filter(Boolean);
+      }
+    };
+    let colorsListForUpdate;
+    if (req.body.colorVarients !== undefined) {
+      colorsListForUpdate = parseListUpdate(req.body.colorVarients);
     }
     if (req.body.sizeVarients !== undefined) {
       const parseList = (raw) => {
@@ -231,6 +287,61 @@ router.put('/update/:id', authenticateToken, requireAdmin, upload.fields([{ name
         newImages.push(result.secure_url);
       }
       updateData.images = product.images ? [...product.images, ...newImages] : newImages;
+    }
+
+    // Convert colorVarients to array of { color, images } for update
+    const parseImagesColorMapUpdate = (raw) => {
+      if (!raw) return {};
+      try {
+        if (typeof raw === 'string') {
+          const trimmed = raw.trim();
+          if (!trimmed) return {};
+          return JSON.parse(trimmed);
+        }
+        if (typeof raw === 'object') return raw;
+        return {};
+      } catch (e) {
+        return {};
+      }
+    };
+    const buildColorVarientsObjectsUpdate = (colors, images, colorMapObj) => {
+      const variants = [];
+      const normColor = (c) => String(c).trim().toLowerCase();
+      const keys = colorMapObj && typeof colorMapObj === 'object' ? Object.keys(colorMapObj) : [];
+      if (keys.length > 0) {
+        for (const key of keys) {
+          const color = normColor(key);
+          let indices = colorMapObj[key];
+          if (!Array.isArray(indices)) {
+            indices = String(indices).split(',').map(s => s.trim()).filter(Boolean);
+          }
+          const idxNums = indices.map(n => parseInt(n, 10)).filter(n => !Number.isNaN(n) && n >= 0 && n < images.length);
+          const urls = idxNums.map(i => images[i]);
+          variants.push({ color, images: urls });
+        }
+      } else if (Array.isArray(colors) && colors.length > 0) {
+        colors.forEach((c, i) => {
+          const color = normColor(c);
+          const url = images?.[i] ? [images[i]] : [];
+          variants.push({ color, images: url });
+        });
+      }
+      return variants;
+    };
+
+    const finalImages = updateData.images || product.images || [];
+    const currentColors = colorsListForUpdate !== undefined
+      ? colorsListForUpdate
+      : (Array.isArray(product.colorVarients) ? product.colorVarients.map(cv => (typeof cv === 'string' ? cv : cv.color)) : []);
+    const imagesColorMapObjUpdate = parseImagesColorMapUpdate(req.body.imagesColorMap);
+    // Debug logs to trace update mapping
+    console.log('🟦 [Update] Raw imagesColorMap:', req.body.imagesColorMap);
+    console.log('🟦 [Update] Parsed imagesColorMap object:', imagesColorMapObjUpdate);
+    console.log('🟦 [Update] Final images count:', finalImages.length);
+    console.log('🟦 [Update] Current colors list:', currentColors);
+    if (currentColors.length > 0 || Object.keys(imagesColorMapObjUpdate).length > 0) {
+      updateData.colorVarients = buildColorVarientsObjectsUpdate(currentColors, finalImages, imagesColorMapObjUpdate);
+      console.log('🟩 [Update] Built colorVarients objects:', updateData.colorVarients);
     }
 
     const updatedProduct = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true }).populate('createdBy', 'name email');
