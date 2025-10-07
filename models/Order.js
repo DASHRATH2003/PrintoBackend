@@ -16,7 +16,11 @@ const orderSchema = new mongoose.Schema({
     {
       name: { type: String, required: true },
       quantity: { type: Number, required: true },
-      price: { type: Number, required: true }
+      price: { type: Number, required: true },
+      // YEH NEW FIELDS ADD KARO
+      size: { type: String, required: false },
+      color: { type: String, required: false },
+      image: { type: String, required: false }
     }
   ],
   total: { type: Number, required: true },
