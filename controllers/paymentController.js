@@ -50,7 +50,7 @@ const createPaymentOrder = async (req, res) => {
       });
     }
     
-    const { amount, currency = 'INR', customerInfo, items } = req.body;
+    const { amount, currency = 'INR', customerInfo, items, orderItems } = req.body;
     
     // Enhanced validation
     if (!amount || !customerInfo || !items) {
@@ -105,7 +105,7 @@ const createPaymentOrder = async (req, res) => {
       });
     }
 
-    // Validate items
+    // Validate items (Razorpay items)
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
         success: false,
@@ -113,7 +113,7 @@ const createPaymentOrder = async (req, res) => {
       });
     }
 
-    // Validate each item
+    // Validate each Razorpay item (can be in paise)
     for (const item of items) {
       if (!item.id || !item.name || typeof item.price !== 'number' || typeof item.quantity !== 'number') {
         return res.status(400).json({
@@ -129,8 +129,18 @@ const createPaymentOrder = async (req, res) => {
       }
     }
 
-    // Calculate and verify total amount
-    const calculatedTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    // Calculate and verify total amount using detailed orderItems (assumed in rupees)
+    // Fallback to items (normalize from paise to rupees when necessary)
+    let validationItems = Array.isArray(orderItems) && orderItems.length > 0 ? orderItems : items;
+    const normalizedValidationItems = validationItems.map(it => {
+      const price = Number(it.price);
+      const qty = Number(it.quantity) || 1;
+      // If items are Razorpay formatted (price in paise), convert to rupees
+      const looksLikePaise = price >= 1000 && amount < 10000 && currency === 'INR';
+      const rupeePrice = looksLikePaise ? price / 100 : price;
+      return { price: rupeePrice, quantity: qty };
+    });
+    const calculatedTotal = normalizedValidationItems.reduce((sum, it) => sum + (it.price * it.quantity), 0);
     if (Math.abs(calculatedTotal - amount) > 0.01) {
       return res.status(400).json({
         success: false,
@@ -215,8 +225,9 @@ const verifyPayment = async (req, res) => {
     }
 
     // Validate Razorpay ID formats
-    const orderIdRegex = /^order_[A-Za-z0-9]{14}$/;
-    const paymentIdRegex = /^pay_[A-Za-z0-9]{14}$/;
+    // Accept typical Razorpay id formats (length varies 14–40)
+    const orderIdRegex = /^order_[A-Za-z0-9]{10,40}$/;
+    const paymentIdRegex = /^pay_[A-Za-z0-9]{10,40}$/;
     
     if (!orderIdRegex.test(razorpay_order_id)) {
       return res.status(400).json({
@@ -344,6 +355,9 @@ const verifyPayment = async (req, res) => {
         name: item.name?.substring(0, 200),
         price: Number(item.price),
         quantity: Number(item.quantity),
+        // Accept both `size/color` and `selectedSize/selectedColor` from frontend
+        size: (item.size ?? item.selectedSize) ?? null,
+        color: (item.color ?? item.selectedColor) ?? null,
         image: item.image?.substring(0, 500)
       })),
       customerName: sanitizedCustomerInfo.name,

@@ -71,8 +71,12 @@ export const createOrder = async (req, res) => {
       customerPincode,
       items: items.map(item => ({
         name: item.name,
-        quantity: item.quantity,
-        price: item.price
+        quantity: Number(item.quantity),
+        price: Number(item.price),
+        // Persist variants robustly: accept both `size/color` and `selectedSize/selectedColor`
+        size: (item.size ?? item.selectedSize) ?? null,
+        color: (item.color ?? item.selectedColor) ?? null,
+        image: item.image || null
       })),
       total: total,
       status: 'processing',
@@ -167,6 +171,48 @@ export const updateOrderStatus = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating order status:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Customer-initiated cancel order
+export const cancelOrderByCustomer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user || {};
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Ownership check: match by customerId or by email
+    const isOwner = (
+      (order.customerId && String(order.customerId) === String(user.userId)) ||
+      (order.customerEmail && user.email && order.customerEmail.toLowerCase() === String(user.email).toLowerCase())
+    );
+
+    if (!isOwner) {
+      return res.status(403).json({ message: 'You are not allowed to cancel this order' });
+    }
+
+    // Allow cancel only if order is still pending or processing
+    const currentStatus = String(order.status || '').toLowerCase();
+    if (!['pending', 'processing'].includes(currentStatus)) {
+      return res.status(400).json({ message: 'Order cannot be cancelled at this stage' });
+    }
+
+    order.status = 'cancelled';
+    await order.save();
+
+    console.log('✅ Order cancelled by customer successfully');
+
+    res.json({
+      message: 'Order cancelled successfully',
+      order
+    });
+  } catch (error) {
+    console.error('Error cancelling order:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

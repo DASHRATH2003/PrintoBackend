@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOrder, getAllOrders, getOrderById, getOrderByPaymentId, updateOrderStatus } from '../controllers/orderController.js';
+import { createOrder, getAllOrders, getOrderById, getOrderByPaymentId, updateOrderStatus, cancelOrderByCustomer } from '../controllers/orderController.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -29,5 +29,8 @@ router.get('/:orderId', getOrderById);
 
 // PUT /api/orders/:id/status - Update order status (admin only)
 router.put('/:id/status', authenticateToken, requireAdmin, updateOrderStatus);
+
+// PUT /api/orders/:id/cancel - Cancel order by customer (authenticated user)
+router.put('/:id/cancel', authenticateToken, cancelOrderByCustomer);
 
 export default router;
