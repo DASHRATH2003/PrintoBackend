@@ -88,6 +88,16 @@ const productSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  // Seller ownership metadata for admin visibility
+  sellerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Seller',
+    default: null
+  },
+  sellerName: {
+    type: String,
+    default: ''
+  },
   updatedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

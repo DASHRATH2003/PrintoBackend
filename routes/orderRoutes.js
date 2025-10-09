@@ -1,5 +1,5 @@
 import express from 'express';
-import { createOrder, getAllOrders, getOrderById, getOrderByPaymentId, updateOrderStatus, cancelOrderByCustomer } from '../controllers/orderController.js';
+import { createOrder, getAllOrders, getOrderById, getOrderByPaymentId, updateOrderStatus, cancelOrderByCustomer, getMyOrders } from '../controllers/orderController.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -9,6 +9,9 @@ router.post('/', createOrder);
 
 // GET /api/orders - Get all orders (public for now, can be restricted later)
 router.get('/', getAllOrders);
+
+// GET /api/orders/my - Get orders for authenticated customer
+router.get('/my', authenticateToken, getMyOrders);
 
 // Test route to verify routing is working
 router.get('/test', (req, res) => {

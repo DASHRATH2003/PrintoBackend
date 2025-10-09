@@ -20,6 +20,7 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import subcategoryRoutes from './routes/subcategoryRoutes.js';
+import sellerRoutes from './routes/sellerRoutes.js';
 
 // Import middleware
 import { requestLogger } from './middleware/auth.js';
@@ -37,7 +38,9 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002', // Current frontend port
+  'http://localhost:3003', // Alternate dev port
   'http://localhost:5173', // Vite default port
+  'http://localhost:5001', // API when running on alternate port
   process.env.FRONTEND_URL // Dynamic from environment
 ].filter(Boolean); // Remove any undefined values
 
@@ -103,6 +106,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/subcategories', subcategoryRoutes);
+app.use('/api/seller', sellerRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

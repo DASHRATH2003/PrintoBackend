@@ -352,6 +352,8 @@ const verifyPayment = async (req, res) => {
       total: amount,
       items: items.map(item => ({
         id: item.id,
+        // Ensure product linkage is persisted for seller/admin dashboards
+        productId: item.productId || item._id || item.id || null,
         name: item.name?.substring(0, 200),
         price: Number(item.price),
         quantity: Number(item.quantity),

@@ -73,6 +73,7 @@ export const createOrder = async (req, res) => {
         name: item.name,
         quantity: Number(item.quantity),
         price: Number(item.price),
+        productId: item.productId || item._id || item.id || null,
         // Persist variants robustly: accept both `size/color` and `selectedSize/selectedColor`
         size: (item.size ?? item.selectedSize) ?? null,
         color: (item.color ?? item.selectedColor) ?? null,
@@ -106,6 +107,31 @@ export const getAllOrders = async (req, res) => {
     res.json(orders);
   } catch (error) {
     console.error('Error fetching orders:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get orders for the authenticated customer (by customerId or email)
+export const getMyOrders = async (req, res) => {
+  try {
+    const user = req.user || {};
+    const userId = user.userId;
+    const userEmail = user.email;
+
+    if (!userId && !userEmail) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const orders = await Order.find({
+      $or: [
+        { customerId: userId },
+        { customerEmail: userEmail }
+      ]
+    }).sort({ createdAt: -1 });
+
+    res.json(orders);
+  } catch (error) {
+    console.error('Error fetching customer orders:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

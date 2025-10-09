@@ -10,7 +10,7 @@ export const uploadFile = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
     const { description, tags, isPublic } = req.body;
-    const userId = req.user ? req.user.id : null;
+    const userId = req.user ? req.user.userId : null;
 
     // Upload to Cloudinary
     const result = await cloudinary.uploader.upload(req.file.path, { resource_type: 'auto' });
@@ -57,7 +57,7 @@ export const uploadMultipleFiles = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No files uploaded' });
     }
     const { description, tags, isPublic } = req.body;
-    const userId = req.user ? req.user.id : null;
+    const userId = req.user ? req.user.userId : null;
 
     const uploadedFiles = [];
     for (const file of req.files) {
@@ -189,7 +189,7 @@ export const getPublicFiles = async (req, res) => {
 // Get current user's files
 export const getUserFiles = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const files = await File.find({ uploadedBy: userId }).populate('uploadedBy', 'name email').sort({ createdAt: -1 });
     res.status(200).json({
       success: true,
@@ -219,7 +219,7 @@ export const getFile = async (req, res) => {
     }
 
     // Check if user has permission to view the file
-    if (!file.isPublic && (!req.user || file.uploadedBy._id.toString() !== req.user.id)) {
+    if (!file.isPublic && (!req.user || file.uploadedBy._id.toString() !== req.user.userId)) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -260,7 +260,7 @@ export const downloadFile = async (req, res) => {
     console.log('File found:', file.originalName, 'isPublic:', file.isPublic);
 
     // Check if user has permission to download the file
-    if (!file.isPublic && (!req.user || file.uploadedBy.toString() !== req.user.id)) {
+    if (!file.isPublic && (!req.user || file.uploadedBy.toString() !== req.user.userId)) {
       console.log('Access denied - private file and no valid user');
       return res.status(403).json({
         success: false,
@@ -302,7 +302,7 @@ export const updateFile = async (req, res) => {
     }
 
     // Check if user owns the file
-    if (file.uploadedBy.toString() !== req.user.id) {
+    if (file.uploadedBy.toString() !== req.user.userId) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -346,7 +346,7 @@ export const deleteFile = async (req, res) => {
     }
 
     // Check if user owns the file or is admin
-    if (file.uploadedBy.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (file.uploadedBy.toString() !== req.user.userId && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'Access denied'

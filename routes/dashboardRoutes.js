@@ -1,5 +1,6 @@
 import express from 'express';
-import { getDashboardStats, getCustomers, getDashboardOrders, updateOrderStatus } from '../controllers/dashboardController.js';
+import { getDashboardStats, getCustomers, getDashboardOrders, updateOrderStatus, getSellers, getSellerDetails } from '../controllers/dashboardController.js';
+import Seller from '../models/Seller.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -18,5 +19,38 @@ router.get('/orders', getDashboardOrders);
 
 // PUT /api/dashboard/orders/:id/status - Update order status
 router.put('/orders/:id/status', updateOrderStatus);
+
+// GET /api/dashboard/sellers - Get all sellers
+router.get('/sellers', getSellers);
+
+// GET /api/dashboard/sellers/:id - Get seller details
+router.get('/sellers/:id', getSellerDetails);
+
+// Admin: Review seller verification - approve/reject
+router.put('/sellers/:id/verification', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, note } = req.body; // action: 'approve' | 'reject'
+    const seller = await Seller.findById(id);
+    if (!seller) {
+      return res.status(404).json({ success: false, message: 'Seller not found' });
+    }
+    const normalized = String(action || '').toLowerCase();
+    if (!['approve', 'reject'].includes(normalized)) {
+      return res.status(400).json({ success: false, message: 'Invalid action. Use approve or reject.' });
+    }
+    seller.verificationStatus = normalized === 'approve' ? 'approved' : 'rejected';
+    seller.verification = {
+      ...(seller.verification || {}),
+      reviewedAt: new Date(),
+      reviewerNote: note || ''
+    };
+    await seller.save();
+    res.json({ success: true, message: `Seller verification ${seller.verificationStatus}.`, data: seller });
+  } catch (error) {
+    console.error('Error updating seller verification:', error);
+    res.status(500).json({ success: false, message: 'Error updating verification', error: error.message });
+  }
+});
 
 export default router;
