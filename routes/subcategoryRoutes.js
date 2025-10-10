@@ -1,5 +1,6 @@
 import express from 'express';
 import Subcategory from '../models/Subcategory.js';
+import { normalizeCategory } from '../utils/category.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -8,7 +9,7 @@ const router = express.Router();
 router.get('/category/:category', async (req, res) => {
   try {
     const { category } = req.params;
-    const subs = await Subcategory.find({ category: category.toLowerCase(), isActive: true })
+    const subs = await Subcategory.find({ category: normalizeCategory(category), isActive: true })
       .sort({ name: 1 });
     res.json({ success: true, data: subs });
   } catch (error) {
@@ -23,7 +24,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     if (!name || !category) {
       return res.status(400).json({ success: false, message: 'Name and category are required' });
     }
-    const sub = new Subcategory({ name: name.trim(), category: category.toLowerCase(), createdBy: req.user.userId });
+    const sub = new Subcategory({ name: name.trim(), category: normalizeCategory(category), createdBy: req.user.userId });
     await sub.save();
     res.status(201).json({ success: true, message: 'Subcategory created', data: sub });
   } catch (error) {

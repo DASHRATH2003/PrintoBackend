@@ -10,7 +10,7 @@ const subcategorySchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ['emart', 'localmarket', 'printing', 'news'],
+    enum: ['l-mart', 'localmarket', 'printing', 'news'],
     lowercase: true
   },
   isActive: {

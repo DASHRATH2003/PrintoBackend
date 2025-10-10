@@ -2,6 +2,7 @@ import express from 'express';
 import Product from '../models/Product.js';
 import Order from '../models/Order.js';
 import { authenticateToken, requireSeller, requireApprovedSeller } from '../middleware/auth.js';
+import { normalizeCategory } from '../utils/category.js';
 import Seller from '../models/Seller.js';
 import multer from 'multer';
 import cloudinary from '../utils/cloudinary.js';
@@ -21,7 +22,7 @@ router.get('/products', requireApprovedSeller, async (req, res) => {
     const { page = 1, limit = 10, search, category, isActive, inStock } = req.query;
 
     const query = { createdBy: req.user.userId };
-    if (category && category !== 'all') query.category = String(category).toLowerCase();
+    if (category && category !== 'all') query.category = normalizeCategory(category);
     if (typeof isActive !== 'undefined') query.isActive = isActive === 'true';
     if (typeof inStock !== 'undefined') query.inStock = inStock === 'true';
     if (search) query.$text = { $search: search };
@@ -113,7 +114,7 @@ router.post(
         description: req.body.description,
         price: req.body.price !== undefined ? parseFloat(req.body.price) : undefined,
         offerPrice: req.body.offerPrice !== undefined && req.body.offerPrice !== '' ? parseFloat(req.body.offerPrice) : null,
-        category: String(req.body.category || '').toLowerCase(),
+        category: normalizeCategory(req.body.category || ''),
         subcategory: req.body.subcategory || '',
         colorVarients: parseList(req.body.colorVarients),
         sizeVarients: parseList(req.body.sizeVarients),

@@ -1,5 +1,6 @@
 import express from 'express';
 import Product from '../models/Product.js';
+import { normalizeCategory } from '../utils/category.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
@@ -54,7 +55,7 @@ router.get('/category/:category', async (req, res) => {
     const { category } = req.params;
     const { page = 1, limit = 10, search, featured, inStock } = req.query;
 
-    const query = { category: category.toLowerCase(), isActive: true };
+    const query = { category: normalizeCategory(category), isActive: true };
 
     if (search) query.$text = { $search: search };
     if (featured !== undefined) query.isFeatured = featured === 'true';
@@ -161,7 +162,7 @@ router.post('/', authenticateToken, requireAdmin, upload.fields([{ name: 'image'
       description: req.body.description,
       price: parseFloat(req.body.price),
       offerPrice: req.body.offerPrice !== undefined && req.body.offerPrice !== '' ? parseFloat(req.body.offerPrice) : null,
-      category: req.body.category.toLowerCase(),
+      category: normalizeCategory(req.body.category),
       subcategory: req.body.subcategory || '',
       // Temporarily keep colors list; will convert to objects after image upload
       colorVarients: parseList(req.body.colorVarients),
@@ -390,7 +391,7 @@ router.get('/admin/all', authenticateToken, requireAdmin, async (req, res) => {
     const { page = 1, limit = 10, category, search } = req.query;
 
     const query = {};
-    if (category && category !== 'all') query.category = category.toLowerCase();
+    if (category && category !== 'all') query.category = normalizeCategory(category);
     if (search) query.$text = { $search: search };
 
     const products = await Product.find(query)

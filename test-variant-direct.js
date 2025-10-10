@@ -15,7 +15,7 @@ const testVariantField = async () => {
       name: 'Test Variant Product',
       description: 'Testing variant field',
       price: 100,
-      category: 'emart',
+      category: 'l-mart',
       subcategory: 'test',
       variant: 'test-variant-value',
       createdBy: new mongoose.Types.ObjectId()
