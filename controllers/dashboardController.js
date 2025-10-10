@@ -159,3 +159,84 @@ export const getSellerDetails = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
+// Admin: Update seller basic details
+export const updateSellerByAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      sellerName,
+      email,
+      sellerHierarchyLevel,
+      parentSellerId,
+      parentSellerEmail,
+      verificationStatus,
+      shopName,
+      phone
+    } = req.body;
+
+    const seller = await Seller.findById(id);
+    if (!seller) {
+      return res.status(404).json({ success: false, message: 'Seller not found' });
+    }
+
+    // Handle email change: ensure uniqueness across Seller and User, and sync User
+    const emailChanged = email && String(email).toLowerCase() !== String(seller.email).toLowerCase();
+    let linkedUser = null;
+    try {
+      linkedUser = await User.findOne({ email: seller.email });
+    } catch {}
+
+    if (emailChanged) {
+      // Check conflicts
+      const existingSeller = await Seller.findOne({ email });
+      if (existingSeller && String(existingSeller._id) !== String(seller._id)) {
+        return res.status(400).json({ success: false, message: 'Email already in use by another seller' });
+      }
+      const existingUser = await User.findOne({ email });
+      if (existingUser && (!linkedUser || String(existingUser._id) !== String(linkedUser._id))) {
+        return res.status(400).json({ success: false, message: 'Email already in use by another user' });
+      }
+    }
+
+    // Apply updates
+    if (typeof name !== 'undefined') seller.name = name;
+    if (typeof sellerName !== 'undefined') seller.sellerName = sellerName;
+    if (typeof sellerHierarchyLevel !== 'undefined') seller.sellerHierarchyLevel = sellerHierarchyLevel;
+    if (typeof verificationStatus !== 'undefined') seller.verificationStatus = String(verificationStatus).toLowerCase();
+
+    // Parent seller linkage by ID or email
+    if (parentSellerId) {
+      seller.parentSeller = parentSellerId;
+    } else if (parentSellerEmail) {
+      const parent = await Seller.findOne({ email: parentSellerEmail }).select('_id');
+      seller.parentSeller = parent ? parent._id : null;
+    }
+
+    // Update verification sub-fields
+    seller.verification = seller.verification || {};
+    if (typeof shopName !== 'undefined') seller.verification.shopName = shopName;
+    if (typeof phone !== 'undefined') seller.verification.phone = phone;
+    if (typeof sellerName !== 'undefined') seller.verification.sellerName = sellerName;
+
+    // Email last to avoid partial updates on validation failure
+    if (emailChanged) {
+      seller.email = email;
+      if (linkedUser) {
+        linkedUser.email = email;
+        await linkedUser.save();
+      }
+    }
+
+    await seller.save();
+    const populated = await Seller.findById(seller._id)
+      .select('name email sellerName sellerHierarchyLevel parentSeller createdAt orderCount totalRevenue loginCount lastLogin verificationStatus registeredOn verification')
+      .populate('parentSeller', 'name email sellerName');
+
+    res.json({ success: true, message: 'Seller updated successfully', data: populated });
+  } catch (error) {
+    console.error('Error updating seller by admin:', error);
+    res.status(500).json({ success: false, message: 'Error updating seller', error: error.message });
+  }
+};

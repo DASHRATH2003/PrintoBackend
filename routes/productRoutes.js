@@ -22,11 +22,14 @@ router.get('/', async (req, res) => {
 
     const query = { isActive: true };
 
-    // Switch to case-insensitive substring matching to support partial words
+    // First-word prefix matching (case-insensitive) on product name
     if (search && String(search).trim().length > 0) {
-      const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(escaped, 'i');
-      query.$or = [{ name: regex }, { description: regex }];
+      const term = String(search).trim();
+      const firstWord = term.split(/\s+/)[0];
+      const escaped = firstWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Anchor to start of product name
+      const regex = new RegExp(`^${escaped}`, 'i');
+      query.$or = [{ name: regex }];
     }
     if (featured !== undefined) query.isFeatured = featured === 'true';
     if (inStock !== undefined) query.inStock = inStock === 'true';
@@ -62,11 +65,13 @@ router.get('/category/:category', async (req, res) => {
 
     const query = { category: normalizeCategory(category), isActive: true };
 
-    // Case-insensitive substring matching for category search, supports partial words
+    // First-word prefix matching (case-insensitive) on product name within category
     if (search && String(search).trim().length > 0) {
-      const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(escaped, 'i');
-      query.$or = [{ name: regex }, { description: regex }];
+      const term = String(search).trim();
+      const firstWord = term.split(/\s+/)[0];
+      const escaped = firstWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`^${escaped}`, 'i');
+      query.$or = [{ name: regex }];
     }
     if (featured !== undefined) query.isFeatured = featured === 'true';
     if (inStock !== undefined) query.inStock = inStock === 'true';
@@ -402,11 +407,13 @@ router.get('/admin/all', authenticateToken, requireAdmin, async (req, res) => {
 
     const query = {};
     if (category && category !== 'all') query.category = normalizeCategory(category);
-    // Admin listing search: case-insensitive substring matching
+    // Admin listing search: first-word prefix matching on name
     if (search && String(search).trim().length > 0) {
-      const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(escaped, 'i');
-      query.$or = [{ name: regex }, { description: regex }];
+      const term = String(search).trim();
+      const firstWord = term.split(/\s+/)[0];
+      const escaped = firstWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`^${escaped}`, 'i');
+      query.$or = [{ name: regex }];
     }
 
     const products = await Product.find(query)

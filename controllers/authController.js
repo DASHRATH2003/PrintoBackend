@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import Seller from '../models/Seller.js';
+import crypto from 'crypto';
+import { createTransporter } from '../utils/email.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -188,6 +190,86 @@ export const login = async (req, res) => {
       }
     });
   } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Forgot password: generate token and email link
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    const user = await User.findOne({ email });
+    if (!user) {
+      // For security, respond success even if email not found
+      return res.json({ message: 'If the email exists, a reset link has been sent' });
+    }
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 1000 * 60 * 30); // 30 minutes
+    user.resetPasswordToken = token;
+    user.resetPasswordExpires = expires;
+    await user.save();
+
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetUrl = `${FRONTEND_URL}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
+
+    const transporter = createTransporter();
+    if (transporter) {
+      try {
+        await transporter.verify();
+        const info = await transporter.sendMail({
+          from: (process.env.SMTP_FROM || 'PrintCo <no-reply@printco.local>').trim(),
+          to: email,
+          subject: 'Reset your PrintCo password',
+          html: `<p>Hello,</p>
+                 <p>You requested a password reset. Click the link below to set a new password. This link expires in 30 minutes.</p>
+                 <p><a href="${resetUrl}" target="_blank" rel="noopener">Reset Password</a></p>
+                 <p>If you did not request this, you can safely ignore this email.</p>`
+        });
+        console.log('✉️ Reset email sent:', { to: email, messageId: info?.messageId, resetUrl });
+      } catch (smtpError) {
+        console.error('❌ SMTP send failed:', smtpError?.response || smtpError?.message || smtpError);
+      }
+    } else {
+      console.warn('SMTP not configured; skipped sending reset email. Reset URL:', resetUrl);
+    }
+
+    // In development or when SMTP isn't configured, include resetUrl to allow manual testing
+    const includeResetUrl = process.env.NODE_ENV !== 'production' || !transporter;
+    res.json({ 
+      message: 'If the email exists, a reset link has been sent',
+      ...(includeResetUrl ? { resetUrl } : {})
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Reset password: validate token, set new password
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, token, password } = req.body;
+    if (!email || !token || !password) {
+      return res.status(400).json({ message: 'Email, token, and new password are required' });
+    }
+    const user = await User.findOne({ email, resetPasswordToken: token });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid reset token' });
+    }
+    if (!user.resetPasswordExpires || user.resetPasswordExpires < new Date()) {
+      return res.status(400).json({ message: 'Reset token has expired' });
+    }
+    const hashed = await bcrypt.hash(password, 10);
+    user.password = hashed;
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
+    await user.save();
+    res.json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

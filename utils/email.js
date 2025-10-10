@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 
+
 // Cache transporter to avoid re-creating on every call
 let cachedTransporter = null;
 
@@ -187,3 +188,7 @@ export async function sendOrderConfirmationEmail(order) {
     return { sent: false, error: error?.message || String(error) };
   }
 }
+
+// Export transporter creator for use in other modules
+export { createTransporter };
+

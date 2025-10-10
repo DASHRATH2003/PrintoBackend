@@ -1,5 +1,5 @@
 import express from 'express';
-import { getDashboardStats, getCustomers, getDashboardOrders, updateOrderStatus, getSellers, getSellerDetails } from '../controllers/dashboardController.js';
+import { getDashboardStats, getCustomers, getDashboardOrders, updateOrderStatus, getSellers, getSellerDetails, updateSellerByAdmin } from '../controllers/dashboardController.js';
 import Seller from '../models/Seller.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
@@ -52,5 +52,15 @@ router.put('/sellers/:id/verification', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error updating verification', error: error.message });
   }
 });
+
+// Admin: Update seller details
+router.put('/sellers/:id', async (req, res, next) => {
+  try {
+    // authenticateToken + requireAdmin already applied at router level
+    next();
+  } catch (e) {
+    next();
+  }
+}, updateSellerByAdmin);
 
 export default router;

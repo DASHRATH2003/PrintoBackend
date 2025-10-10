@@ -10,6 +10,9 @@ const userSchema = new mongoose.Schema({
   totalSpent: { type: Number, default: 0 },
   loginCount: { type: Number, default: 0 },
   lastLogin: { type: Date },
+  // Password reset fields
+  resetPasswordToken: { type: String, default: null },
+  resetPasswordExpires: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 
