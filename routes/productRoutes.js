@@ -22,7 +22,12 @@ router.get('/', async (req, res) => {
 
     const query = { isActive: true };
 
-    if (search) query.$text = { $search: search };
+    // Switch to case-insensitive substring matching to support partial words
+    if (search && String(search).trim().length > 0) {
+      const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+      query.$or = [{ name: regex }, { description: regex }];
+    }
     if (featured !== undefined) query.isFeatured = featured === 'true';
     if (inStock !== undefined) query.inStock = inStock === 'true';
 
@@ -57,7 +62,12 @@ router.get('/category/:category', async (req, res) => {
 
     const query = { category: normalizeCategory(category), isActive: true };
 
-    if (search) query.$text = { $search: search };
+    // Case-insensitive substring matching for category search, supports partial words
+    if (search && String(search).trim().length > 0) {
+      const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+      query.$or = [{ name: regex }, { description: regex }];
+    }
     if (featured !== undefined) query.isFeatured = featured === 'true';
     if (inStock !== undefined) query.inStock = inStock === 'true';
 
@@ -392,7 +402,12 @@ router.get('/admin/all', authenticateToken, requireAdmin, async (req, res) => {
 
     const query = {};
     if (category && category !== 'all') query.category = normalizeCategory(category);
-    if (search) query.$text = { $search: search };
+    // Admin listing search: case-insensitive substring matching
+    if (search && String(search).trim().length > 0) {
+      const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+      query.$or = [{ name: regex }, { description: regex }];
+    }
 
     const products = await Product.find(query)
       .populate('createdBy', 'name email')
