@@ -5,12 +5,12 @@ import Order from '../models/Order.js';
 // Initialize default admin user if not exists
 export const initializeAdmin = async () => {
   try {
-    const adminExists = await User.findOne({ email: 'admin@printo.com' });
+    const adminExists = await User.findOne({ email: 'admin@lmart.in' });
     if (!adminExists) {
-      const hashedPassword = await bcrypt.hash('admin123', 10);
+      const hashedPassword = await bcrypt.hash('santoshlmart@90', 10);
       const admin = new User({
         name: 'Admin User',
-        email: 'admin@printo.com',
+        email: 'admin@lmart.in',
         password: hashedPassword,
         role: 'admin'
       });
