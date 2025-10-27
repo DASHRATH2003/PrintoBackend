@@ -62,26 +62,61 @@ export const getDashboardOrders = async (req, res) => {
       });
 
     // Flatten seller info into each item for frontend convenience
-    const enriched = orders.map(order => {
+    const enriched = await Promise.all(orders.map(async (order) => {
       const o = order.toObject();
-      o.items = (o.items || []).map(item => {
+      o.items = await Promise.all((o.items || []).map(async (item) => {
         const prod = item.productId || {};
         const createdBy = prod.createdBy || {};
-        const sellerId = prod.sellerId || null;
+        let sellerId = prod.sellerId || null;
+
+        // Fallback: if sellerId missing but product created by a seller user, map to Seller by email
+        if (!sellerId && createdBy && createdBy.email) {
+          try {
+            const sellerDoc = await Seller.findOne({ email: createdBy.email }).select('_id');
+            if (sellerDoc) sellerId = sellerDoc._id;
+          } catch (_) {
+            // ignore lookup errors
+          }
+        }
+
+        // Additional legacy fallback: handle products where createdBy stored as Seller._id
+        if (!sellerId) {
+          try {
+            const fullProd = await Product.findById(item.productId).select('createdBy sellerId sellerName');
+            if (fullProd) {
+              if (fullProd.sellerId) {
+                sellerId = fullProd.sellerId;
+              } else if (fullProd.createdBy) {
+                // Attempt to resolve createdBy as a Seller document
+                const sellerById = await Seller.findById(fullProd.createdBy).select('_id sellerName name email');
+                if (sellerById) {
+                  sellerId = sellerById._id;
+                  // Prefer stored sellerName if available below
+                  if (!prod.sellerName) {
+                    prod.sellerName = sellerById.sellerName || sellerById.name || '';
+                  }
+                }
+              }
+            }
+          } catch (_) {
+            // ignore legacy lookup errors
+          }
+        }
+
         let sellerName = prod.sellerName || '';
         if (!sellerName && createdBy && createdBy.name) {
-          // If product created by admin, mark clearly; else use user name
           const role = String(createdBy.role || '').toLowerCase();
           sellerName = role === 'admin' ? 'Admin' : createdBy.name;
         }
+
         return {
           ...item,
           sellerId: sellerId ? String(sellerId) : null,
           sellerName
         };
-      });
+      }));
       return o;
-    });
+    }));
 
     res.json(enriched);
   } catch (error) {
@@ -403,5 +438,14 @@ export const setCategoryCommission = async (req, res) => {
   } catch (error) {
     console.error('Error setting category commission:', error);
     res.status(500).json({ success: false, message: 'Error updating commission', error: error.message });
+  }
+};
+// Delete all orders (admin-only)
+export const deleteAllOrders = async (req, res) => {
+  try {
+    const result = await Order.deleteMany({});
+    res.json({ success: true, message: 'All orders deleted', deletedCount: result.deletedCount });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to delete orders', error: error.message });
   }
 };

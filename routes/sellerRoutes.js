@@ -407,14 +407,12 @@ router.get('/orders/recent', requireApprovedSeller, async (req, res) => {
     // Filter and enhance order data for seller
     const enhancedOrders = orders.map(order => {
       // Filter items to only include seller's products
-      const sellerItems = order.items.filter(item => 
+      const sellerItems = (order.items || []).filter(item => 
         productIds.some(id => String(id) === String(item.productId))
       );
 
       // Calculate seller's portion of the order
-      const sellerTotal = sellerItems.reduce((sum, item) => {
-        return sum + (item.price * item.quantity);
-      }, 0);
+      const sellerTotal = sellerItems.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
 
       return {
         _id: order._id,
@@ -422,14 +420,19 @@ router.get('/orders/recent', requireApprovedSeller, async (req, res) => {
         status: order.status,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
+        // Provide full customer fields for frontend
         customerInfo: {
-          name: order.customerInfo?.name || 'N/A',
-          email: order.customerInfo?.email || 'N/A'
+          name: order.customerName || order.customerInfo?.name || '',
+          email: order.customerEmail || order.customerInfo?.email || '',
+          phone: order.customerPhone || order.customerInfo?.phone || '',
+          address: order.customerAddress || order.customerInfo?.address || '',
+          city: order.customerCity || order.customerInfo?.city || '',
+          pincode: order.customerPincode || order.customerInfo?.pincode || ''
         },
         sellerItems,
         sellerTotal,
         itemCount: sellerItems.length,
-        totalQuantity: sellerItems.reduce((sum, item) => sum + item.quantity, 0)
+        totalQuantity: sellerItems.reduce((sum, item) => sum + Number(item.quantity), 0)
       };
     });
 

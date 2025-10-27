@@ -487,14 +487,19 @@ router.get('/seller/:id', authenticateToken, async (req, res) => {
       }
     }
 
-    // Map Seller -> User to query Product.createdBy
+    // Build query that supports both new and legacy product ownership mappings
     const userDoc = await User.findOne({ email: sellerDoc.email }).select('_id');
-    if (!userDoc) {
-      // Return empty array for consistency
-      return res.json([]);
+    const orConditions = [];
+    // New mapping: explicit sellerId stored on Product
+    orConditions.push({ sellerId: sellerDoc._id });
+    // Legacy mapping: Product.createdBy stores Seller._id
+    orConditions.push({ createdBy: sellerDoc._id });
+    // Standard mapping: Product.createdBy stores User._id mapped from seller email
+    if (userDoc && userDoc._id) {
+      orConditions.push({ createdBy: userDoc._id });
     }
 
-    const query = { createdBy: userDoc._id };
+    const query = { $or: orConditions };
     const products = await Product.find(query)
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })

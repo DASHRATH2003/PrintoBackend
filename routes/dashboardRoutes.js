@@ -1,5 +1,5 @@
 import express from 'express';
-import { getDashboardStats, getCustomers, getDashboardOrders, updateOrderStatus, getSellers, getSellerDetails, updateSellerByAdmin, getAdminEarnings, getCategoryCommissions, setCategoryCommission } from '../controllers/dashboardController.js';
+import { getDashboardStats, getCustomers, getDashboardOrders, updateOrderStatus, getSellers, getSellerDetails, updateSellerByAdmin, getAdminEarnings, getCategoryCommissions, setCategoryCommission, deleteAllOrders } from '../controllers/dashboardController.js';
 import Seller from '../models/Seller.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
@@ -16,6 +16,9 @@ router.get('/customers', getCustomers);
 
 // GET /api/dashboard/orders - Get all orders for admin
 router.get('/orders', getDashboardOrders);
+
+// DELETE /api/dashboard/orders/all - Delete all orders
+router.delete('/orders/all', deleteAllOrders);
 
 // PUT /api/dashboard/orders/:id/status - Update order status
 router.put('/orders/:id/status', updateOrderStatus);

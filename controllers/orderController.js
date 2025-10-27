@@ -64,6 +64,26 @@ export const createOrder = async (req, res) => {
         error: 'Test data validation failed'
       });
     }
+    // Idempotency guard: if an order already exists with same paymentId or orderId, return it
+    try {
+      if (paymentId || orderId) {
+        const existingOrder = await Order.findOne({
+          $or: [
+            paymentId ? { paymentId } : null,
+            orderId ? { orderId } : null
+          ].filter(Boolean)
+        });
+        if (existingOrder) {
+          console.log('✅ Idempotency: existing order found, skipping duplicate create');
+          return res.status(200).json({
+            message: 'Order already exists',
+            order: existingOrder
+          });
+        }
+      }
+    } catch (checkErr) {
+      console.warn('⚠️ Idempotency check failed, continuing create:', checkErr?.message);
+    }
     
     // Fetch commission map once
     const commissionRows = await CategoryCommission.find({}).select('category commissionPercent');
