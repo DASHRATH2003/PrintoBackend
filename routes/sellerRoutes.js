@@ -618,7 +618,7 @@ router.get('/earnings', requireApprovedSeller, async (req, res) => {
 router.get('/category-commission/:category', async (req, res) => {
   try {
     const category = String(req.params.category || '').toLowerCase();
-    const valid = ['l-mart', 'localmarket', 'printing', 'news'];
+    const valid = ['l-mart', 'localmarket', 'printing', 'oldee', 'news'];
     if (!valid.includes(category)) {
       return res.status(400).json({ success: false, message: 'Invalid category' });
     }
@@ -719,7 +719,7 @@ const validateProductData = (product, index) => {
     errors.push(`Row ${index + 1}: Price must be a valid number`);
   }
 
-  const validCategories = ['l-mart', 'localmarket', 'printing', 'news'];
+  const validCategories = ['l-mart', 'localmarket', 'printing', 'oldee', 'news'];
   if (product.category && !validCategories.includes(product.category.toLowerCase())) {
     errors.push(`Row ${index + 1}: Category must be one of: ${validCategories.join(', ')}`);
   }

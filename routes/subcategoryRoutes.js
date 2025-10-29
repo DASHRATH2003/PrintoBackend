@@ -53,6 +53,10 @@ router.post('/', authenticateToken, requireAdmin, upload.single('image'), async 
     if (error.code === 11000) {
       return res.status(409).json({ success: false, message: 'Subcategory already exists for this category' });
     }
+    if (error?.name === 'ValidationError') {
+      const msg = Object.values(error.errors || {}).map(e => e.message).join(', ') || 'Validation error';
+      return res.status(400).json({ success: false, message: msg });
+    }
     res.status(500).json({ success: false, message: 'Error creating subcategory', error: error.message });
   }
 });

@@ -110,7 +110,7 @@ const validateProductData = (product, index) => {
   }
 
   // Validate category
-  const validCategories = ['l-mart', 'localmarket', 'printing', 'news'];
+  const validCategories = ['l-mart', 'localmarket', 'printing', 'oldee', 'news'];
   if (product.category && !validCategories.includes(product.category.toLowerCase())) {
     errors.push(`Row ${index + 1}: Category must be one of: ${validCategories.join(', ')}`);
   }

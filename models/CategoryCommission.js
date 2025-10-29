@@ -4,7 +4,7 @@ const categoryCommissionSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ['l-mart', 'localmarket', 'printing', 'news'],
+    enum: ['l-mart', 'localmarket', 'printing', 'oldee', 'news'],
     lowercase: true,
     unique: true
   },

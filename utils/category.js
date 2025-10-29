@@ -12,5 +12,5 @@ export const normalizeCategory = (raw) => {
 
 export const isValidCategory = (raw) => {
   const val = normalizeCategory(raw);
-  return ['l-mart', 'localmarket', 'printing', 'news'].includes(val);
+  return ['l-mart', 'localmarket', 'printing', 'oldee', 'news'].includes(val);
 };

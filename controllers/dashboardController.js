@@ -404,7 +404,7 @@ export const getAdminEarnings = async (req, res) => {
 // Admin: Get all category commissions (with defaults for missing ones)
 export const getCategoryCommissions = async (req, res) => {
   try {
-    const categories = ['l-mart', 'localmarket', 'printing', 'news'];
+    const categories = ['l-mart', 'localmarket', 'printing', 'oldee', 'news'];
     const rows = await CategoryCommission.find({}).select('category commissionPercent');
     const map = new Map(rows.map(r => [String(r.category).toLowerCase(), Number(r.commissionPercent || 2)]));
     const data = categories.map(cat => ({ category: cat, commissionPercent: map.get(cat) ?? 2 }));
@@ -421,7 +421,7 @@ export const setCategoryCommission = async (req, res) => {
     const categoryRaw = req.params.category || req.body.category;
     const category = String(categoryRaw || '').toLowerCase();
     const { commissionPercent } = req.body;
-    const categories = ['l-mart', 'localmarket', 'printing', 'news'];
+    const categories = ['l-mart', 'localmarket', 'printing', 'oldee', 'news'];
     if (!categories.includes(category)) {
       return res.status(400).json({ success: false, message: 'Invalid category' });
     }
