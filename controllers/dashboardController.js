@@ -197,6 +197,46 @@ export const getSellerDetails = async (req, res) => {
   }
 };
 
+// Admin: Delete seller and related products
+export const deleteSeller = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const seller = await Seller.findById(id);
+    if (!seller) {
+      return res.status(404).json({ success: false, message: 'Seller not found' });
+    }
+
+    // Find linked user by email
+    const user = await User.findOne({ email: seller.email }).select('_id role email');
+
+    // Delete products associated with seller
+    const orConditions = [{ sellerId: seller._id }, { createdBy: seller._id }];
+    if (user && user._id) {
+      orConditions.push({ createdBy: user._id });
+    }
+    const prodDeleteResult = await Product.deleteMany({ $or: orConditions });
+
+    // Delete seller document
+    await Seller.findByIdAndDelete(id);
+
+    // Optionally delete linked user with seller role
+    let userDeleted = false;
+    if (user && String(user.role).toLowerCase() === 'seller') {
+      await User.deleteOne({ _id: user._id });
+      userDeleted = true;
+    }
+
+    return res.json({
+      success: true,
+      message: 'Seller deleted successfully',
+      data: { sellerId: id, deletedProducts: prodDeleteResult?.deletedCount || 0, userDeleted }
+    });
+  } catch (error) {
+    console.error('Error deleting seller:', error);
+    return res.status(500).json({ success: false, message: 'Error deleting seller', error: error.message });
+  }
+};
+
 // Admin: Update seller basic details
 export const updateSellerByAdmin = async (req, res) => {
   try {
