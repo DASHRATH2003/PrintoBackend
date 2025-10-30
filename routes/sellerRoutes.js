@@ -335,6 +335,162 @@ router.post(
   }
 );
 
+// PUT /api/seller/products/:id - Update a seller-owned product
+router.put(
+  '/products/:id',
+  requireApprovedSeller,
+  upload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'images', maxCount: 10 },
+    { name: 'video', maxCount: 1 }
+  ]),
+  async (req, res) => {
+    try {
+      const product = await Product.findById(req.params.id);
+      if (!product) {
+        return res.status(404).json({ success: false, message: 'Product not found' });
+      }
+
+      // Authorize: only owner seller can update
+      // Ownership can be stored as Product.createdBy (User._id) or Product.sellerId (Seller._id)
+      let currentSellerId = null;
+      try {
+        const sellerDoc = await Seller.findOne({ email: req.user.email }).select('_id');
+        currentSellerId = sellerDoc?._id || null;
+      } catch (e) {
+        currentSellerId = null;
+      }
+
+      const isOwner = (
+        String(product.createdBy) === String(req.user.userId) ||
+        (currentSellerId && String(product.sellerId) === String(currentSellerId))
+      );
+
+      if (!isOwner) {
+        return res.status(403).json({ success: false, message: 'Not authorized to update this product' });
+      }
+
+      // Build update payload
+      const updateData = { updatedBy: req.user.userId };
+
+      if (req.body.name !== undefined) updateData.name = req.body.name;
+      if (req.body.description !== undefined) updateData.description = req.body.description;
+      if (req.body.category !== undefined) updateData.category = normalizeCategory(req.body.category);
+      if (req.body.subcategory !== undefined) updateData.subcategory = req.body.subcategory;
+
+      if (req.body.price !== undefined) updateData.price = parseFloat(req.body.price);
+      if (req.body.offerPrice !== undefined) {
+        updateData.offerPrice = req.body.offerPrice !== '' ? parseFloat(req.body.offerPrice) : null;
+      }
+
+      if (req.body.inStock !== undefined) {
+        updateData.inStock = (req.body.inStock === 'true' || req.body.inStock === true);
+      }
+      if (req.body.stockQuantity !== undefined) {
+        const qty = parseInt(req.body.stockQuantity);
+        updateData.stockQuantity = isNaN(qty) ? product.stockQuantity : qty;
+        // Auto-update inStock if provided quantity
+        if (updateData.stockQuantity !== undefined) {
+          updateData.inStock = updateData.stockQuantity > 0;
+        }
+      }
+
+      // Parse varients lists that may come as JSON or CSV strings
+      const parseList = (val) => {
+        if (val === undefined) return undefined;
+        try {
+          const obj = typeof val === 'string' ? JSON.parse(val) : val;
+          if (Array.isArray(obj)) return obj.map(v => String(v).trim()).filter(Boolean);
+        } catch (e) { /* fall through */ }
+        const str = String(val || '').trim();
+        if (!str) return [];
+        return str.split(',').map(s => s.trim()).filter(Boolean);
+      };
+
+      const colorsListForUpdate = parseList(req.body.colorVarients);
+      const sizesListForUpdate = parseList(req.body.sizeVarients);
+      if (colorsListForUpdate !== undefined) updateData.colorVarients = colorsListForUpdate;
+      if (sizesListForUpdate !== undefined) updateData.sizeVarients = sizesListForUpdate;
+
+      // Handle image replacement
+      if (req.files?.image?.[0]) {
+        const result = await new Promise((resolve, reject) => {
+          cloudinary.uploader.upload_stream({ resource_type: 'auto', folder: 'products' }, (err, res) => {
+            if (err) reject(err); else resolve(res);
+          }).end(req.files.image[0].buffer);
+        });
+        updateData.image = result.secure_url;
+      }
+
+      // Handle additional images: replace set if provided
+      if (req.files?.images?.length > 0) {
+        updateData.images = [];
+        for (const file of req.files.images) {
+          const result = await new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_stream({ resource_type: 'auto', folder: 'products' }, (err, res) => {
+              if (err) reject(err); else resolve(res);
+            }).end(file.buffer);
+          });
+          updateData.images.push(result.secure_url);
+        }
+      }
+
+      // Optional product video
+      if (req.files?.video?.[0]) {
+        const videoFile = req.files.video[0];
+        try {
+          if (videoFile.size && videoFile.size > 5 * 1024 * 1024) {
+            return res.status(400).json({ success: false, message: 'Video file exceeds 5MB limit' });
+          }
+        } catch (e) { /* ignore */ }
+        const videoResult = await new Promise((resolve, reject) => {
+          cloudinary.uploader.upload_stream({ resource_type: 'video', folder: 'product_videos' }, (err, res) => {
+            if (err) reject(err); else resolve(res);
+          }).end(videoFile.buffer);
+        });
+        updateData.videoUrl = videoResult.secure_url;
+      }
+
+      // Images-color mapping for colorVarients objects
+      const parseImagesColorMapUpdate = (val) => {
+        try {
+          const obj = typeof val === 'string' ? JSON.parse(val) : val;
+          return obj && typeof obj === 'object' ? obj : {};
+        } catch (e) {
+          return {};
+        }
+      };
+
+      const buildColorVarientsObjectsUpdate = (colors, images, mapObj) => {
+        if (!Array.isArray(colors)) return [];
+        const imgs = Array.isArray(images) ? images : (product.images || []);
+        return colors.map(color => {
+          const mapped = mapObj && mapObj[color] ? mapObj[color] : [];
+          const imgsForColor = mapped.filter(url => imgs.includes(url));
+          return { color, images: imgsForColor };
+        });
+      };
+
+      const imagesColorMapObjUpdate = parseImagesColorMapUpdate(req.body.imagesColorMap);
+      const finalImages = updateData.images || product.images || [];
+      const currentColors = updateData.colorVarients !== undefined
+        ? updateData.colorVarients
+        : (Array.isArray(product.colorVarients)
+            ? product.colorVarients.map(cv => (typeof cv === 'string' ? cv : cv.color))
+            : []);
+      if (currentColors.length > 0 || Object.keys(imagesColorMapObjUpdate).length > 0) {
+        updateData.colorVarients = buildColorVarientsObjectsUpdate(currentColors, finalImages, imagesColorMapObjUpdate);
+      }
+
+      const updated = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
+      return res.json({ success: true, message: 'Product updated successfully', data: updated });
+    } catch (error) {
+      console.error('Error updating seller product:', error);
+      return res.status(500).json({ success: false, message: 'Error updating product', error: error.message });
+    }
+  }
+);
+
 // PATCH /api/seller/products/:id/toggle-status - Toggle product active status (seller-owned only)
 router.patch('/products/:id/toggle-status', requireApprovedSeller, async (req, res) => {
   try {

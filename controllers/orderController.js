@@ -142,6 +142,34 @@ export const createOrder = async (req, res) => {
     
     console.log('✅ Order saved successfully');
 
+    // Decrease product stock for each ordered item
+    try {
+      const stockUpdates = [];
+      for (const item of (savedOrder.items || [])) {
+        const pid = item.productId;
+        const qty = Number(item.quantity || 0);
+        if (!pid || qty <= 0) continue;
+
+        const prod = await Product.findById(pid).select('stockQuantity inStock');
+        if (!prod) continue;
+
+        const before = Number(prod.stockQuantity || 0);
+        const after = Math.max(0, before - qty);
+        prod.stockQuantity = after;
+        prod.inStock = after > 0;
+        await prod.save();
+        stockUpdates.push({ productId: String(prod._id), before, ordered: qty, after });
+      }
+      if (stockUpdates.length > 0) {
+        console.log('✅ Stock updated for ordered products:', stockUpdates);
+      } else {
+        console.log('ℹ️ No stock updates performed (no productId or qty)');
+      }
+    } catch (stockErr) {
+      console.error('❌ Failed to update product stock quantities:', stockErr?.message || stockErr);
+      // Do not fail order creation on stock update error
+    }
+
     // Create admin notification for new order
     try {
       const notification = new Notification({

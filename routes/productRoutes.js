@@ -256,6 +256,11 @@ router.put('/update/:id', authenticateToken, requireAdmin, upload.fields([{ name
 
     const updateData = { ...req.body, updatedBy: req.user.userId };
 
+    // Normalize category to match schema enum (e.g., emart -> l-mart)
+    if (updateData.category !== undefined) {
+      updateData.category = normalizeCategory(updateData.category);
+    }
+
     // Normalize numeric fields
     if (updateData.price !== undefined) updateData.price = parseFloat(updateData.price);
     if (req.body.offerPrice !== undefined) {
@@ -319,7 +324,16 @@ router.put('/update/:id', authenticateToken, requireAdmin, upload.fields([{ name
         });
         newImages.push(result.secure_url);
       }
-      updateData.images = product.images ? [...product.images, ...newImages] : newImages;
+      const combined = product.images ? [...product.images, ...newImages] : newImages;
+      const seen = new Set();
+      const deduped = [];
+      combined.forEach((u) => {
+        const key = String(u || '').trim();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        deduped.push(u);
+      });
+      updateData.images = deduped;
     }
 
     // Handle optional video (max 5MB)

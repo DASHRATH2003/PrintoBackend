@@ -407,6 +407,34 @@ const verifyPayment = async (req, res) => {
     const savedOrder = await newOrder.save();
     
     console.log('✅ Order saved successfully:', savedOrder._id);
+
+    // Decrease product stock for each ordered item
+    try {
+      const stockUpdates = [];
+      for (const item of (savedOrder.items || [])) {
+        const pid = item.productId || item._id || item.id;
+        const qty = Number(item.quantity || 0);
+        if (!pid || qty <= 0) continue;
+
+        const prod = await Product.findById(pid).select('stockQuantity inStock');
+        if (!prod) continue;
+
+        const before = Number(prod.stockQuantity || 0);
+        const after = Math.max(0, before - qty);
+        prod.stockQuantity = after;
+        prod.inStock = after > 0;
+        await prod.save();
+        stockUpdates.push({ productId: String(prod._id), before, ordered: qty, after });
+      }
+      if (stockUpdates.length > 0) {
+        console.log('✅ Stock updated for ordered products (payment verify):', stockUpdates);
+      } else {
+        console.log('ℹ️ No stock updates performed after payment verification');
+      }
+    } catch (stockErr) {
+      console.error('❌ Failed to update product stock quantities after payment verify:', stockErr?.message || stockErr);
+      // Do not fail payment verify on stock update error
+    }
     
     // Log successful order creation for audit
     console.log(`Order created: ${orderId} for payment ${razorpay_payment_id} by ${sanitizedCustomerInfo.email}`);

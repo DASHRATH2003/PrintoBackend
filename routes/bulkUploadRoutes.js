@@ -212,7 +212,8 @@ const processProductData = async (rawData, userId, sellerId = null, sellerName =
         colorVarients: colorVarients,
         sizeVarients: sizesList,
         image: mainImage || imagesList[0] || 'https://via.placeholder.com/400x300?text=No+Image',
-        images: imagesList,
+        // Avoid duplicating the main image inside `images` when mainImage is absent and we fallback to imagesList[0]
+        images: mainImage ? imagesList : imagesList.slice(1),
         videoUrl: product.videoUrl || null,
         inStock: product.inStock !== undefined ? 
           (product.inStock.toString().toLowerCase() === 'true') : true,
