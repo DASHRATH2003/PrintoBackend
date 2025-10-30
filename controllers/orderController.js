@@ -85,6 +85,36 @@ export const createOrder = async (req, res) => {
       console.warn('⚠️ Idempotency check failed, continuing create:', checkErr?.message);
     }
     
+    // Pre-stock validation: ensure requested quantities do not exceed available stock
+    try {
+      const requestedByProduct = new Map();
+      for (const it of (items || [])) {
+        const pid = it.productId || it._id || it.id;
+        const qty = Number(it.quantity || 0);
+        if (!pid || qty <= 0) continue;
+        requestedByProduct.set(pid, (requestedByProduct.get(pid) || 0) + qty);
+      }
+
+      const insuff = [];
+      for (const [pid, reqQty] of requestedByProduct.entries()) {
+        const prod = await Product.findById(pid).select('name stockQuantity inStock');
+        if (!prod) continue;
+        const available = Number(prod.stockQuantity || 0);
+        if (reqQty > available) {
+          insuff.push({ productId: String(prod._id), name: prod.name, requested: reqQty, available });
+        }
+      }
+
+      if (insuff.length > 0) {
+        return res.status(400).json({
+          message: 'Stock insufficient for some items',
+          details: insuff,
+        });
+      }
+    } catch (preCheckErr) {
+      console.warn('⚠️ Stock pre-check failed, continuing:', preCheckErr?.message || preCheckErr);
+    }
+
     // Fetch commission map once
     const commissionRows = await CategoryCommission.find({}).select('category commissionPercent');
     const commissionMap = new Map(commissionRows.map(r => [String(r.category).toLowerCase(), Number(r.commissionPercent || 2)]));

@@ -150,6 +150,37 @@ const createPaymentOrder = async (req, res) => {
       });
     }
     
+    // Stock pre-validation using detailed orderItems
+    try {
+      if (Array.isArray(orderItems) && orderItems.length > 0) {
+        const requestedByProduct = new Map();
+        for (const it of orderItems) {
+          const pid = it.productId || it._id || it.id;
+          const qty = Number(it.quantity || 0);
+          if (!pid || qty <= 0) continue;
+          requestedByProduct.set(pid, (requestedByProduct.get(pid) || 0) + qty);
+        }
+        const insuff = [];
+        for (const [pid, reqQty] of requestedByProduct.entries()) {
+          const prod = await Product.findById(pid).select('name stockQuantity inStock');
+          if (!prod) continue;
+          const available = Number(prod.stockQuantity || 0);
+          if (reqQty > available) {
+            insuff.push({ productId: String(prod._id), name: prod.name, requested: reqQty, available });
+          }
+        }
+        if (insuff.length > 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Stock insufficient for some items',
+            details: insuff
+          });
+        }
+      }
+    } catch (preCheckErr) {
+      console.warn('⚠️ Payment stock pre-check failed, continuing:', preCheckErr?.message || preCheckErr);
+    }
+    
     // Create Razorpay order
     const options = {
       amount: Math.round(amount * 100), // Amount in paise and round
