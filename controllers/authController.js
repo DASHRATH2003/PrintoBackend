@@ -287,10 +287,16 @@ export const forgotPassword = async (req, res) => {
     if (transporter) {
       try {
         await transporter.verify();
+        const fromAddress = (process.env.SMTP_FROM || (process.env.SMTP_USER ? `"L-Mart" <${process.env.SMTP_USER}>` : 'L-Mart <no-reply@example.com>')).trim();
         const info = await transporter.sendMail({
-          from: (process.env.SMTP_FROM || 'L-Mart <no-reply@lmart.local>').trim(),
+          from: fromAddress,
           to: email,
           subject: 'Reset your L-Mart password',
+          headers: {
+            'X-Priority': '1',
+            'X-MSMail-Priority': 'High',
+            'Importance': 'High'
+          },
           html: `<p>Hello,</p>
                  <p>You requested a password reset for your ${accountType} account. Click the link below to set a new password. This link expires in 30 minutes.</p>
                  <p><a href="${resetUrl}" target="_blank" rel="noopener">Reset Password</a></p>
