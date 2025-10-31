@@ -28,6 +28,8 @@ function createTransporter() {
       user: SMTP_USER,
       pass: SMTP_PASS,
     },
+    logger: String(process.env.SMTP_DEBUG).toLowerCase() === 'true',
+    debug: String(process.env.SMTP_DEBUG).toLowerCase() === 'true',
   });
 
   cachedTransporter = transporter;

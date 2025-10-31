@@ -357,3 +357,34 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
+// SMTP status: verify transporter configuration in runtime (diagnostic)
+export const smtpStatus = async (req, res) => {
+  try {
+    const transporter = createTransporter();
+    if (!transporter) {
+      return res.json({ configured: false, reason: 'smtp_not_configured' });
+    }
+    let verifyOk = false;
+    let verifyError = null;
+    try {
+      await transporter.verify();
+      verifyOk = true;
+    } catch (err) {
+      verifyOk = false;
+      verifyError = err?.message || String(err);
+    }
+
+    res.json({
+      configured: true,
+      verifyOk,
+      verifyError,
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      secure: String(process.env.SMTP_SECURE).toLowerCase() === 'true' || Number(process.env.SMTP_PORT) === 465,
+      from: (process.env.SMTP_FROM || process.env.SMTP_USER || '').toString()
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'smtp status error', error: error?.message || String(error) });
+  }
+};

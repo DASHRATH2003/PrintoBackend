@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, registerSeller, forgotPassword, resetPassword } from '../controllers/authController.js';
+import { register, login, registerSeller, forgotPassword, resetPassword, smtpStatus } from '../controllers/authController.js';
 
 const router = express.Router();
 
@@ -17,5 +17,8 @@ router.post('/forgot-password', forgotPassword);
 
 // POST /api/auth/reset-password
 router.post('/reset-password', resetPassword);
+
+// GET /api/auth/smtp-status (diagnostic)
+router.get('/smtp-status', smtpStatus);
 
 export default router;
