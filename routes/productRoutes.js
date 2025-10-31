@@ -1,5 +1,6 @@
 import express from 'express';
 import Product from '../models/Product.js';
+import Order from '../models/Order.js';
 import Seller from '../models/Seller.js';
 import User from '../models/User.js';
 import { normalizeCategory } from '../utils/category.js';
@@ -110,6 +111,81 @@ router.get('/single/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching product:', error);
     res.status(500).json({ success: false, message: 'Error fetching product', error: error.message });
+  }
+});
+
+// ✅ Submit rating for a product (incremental average)
+router.post('/rate/:id', authenticateToken, async (req, res) => {
+  try {
+    const { rating, orderId, comment } = req.body;
+    const value = Number(rating);
+    if (!Number.isFinite(value) || value < 1 || value > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be a number between 1 and 5' });
+    }
+
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    // If orderId provided, validate delivered status and item ownership
+    if (orderId) {
+      const order = await Order.findOne({ orderId });
+      if (!order) {
+        return res.status(404).json({ success: false, message: 'Order not found' });
+      }
+      // Ensure requester is the purchaser (if customerId exists) and order delivered
+      if (order.customerId && String(order.customerId) !== String(req.user.userId)) {
+        return res.status(403).json({ success: false, message: 'You can rate only your own orders' });
+      }
+      if (order.status !== 'delivered') {
+        return res.status(400).json({ success: false, message: 'Rating allowed only after delivery' });
+      }
+      const containsProduct = Array.isArray(order.items) && order.items.some(it => String(it.productId) === String(product._id));
+      if (!containsProduct) {
+        return res.status(400).json({ success: false, message: 'This product was not part of the specified order' });
+      }
+    }
+
+    // Upsert user rating (prevent duplicates). If exists, update; else add.
+    const existingIdx = (product.ratings || []).findIndex(r => String(r.userId) === String(req.user.userId));
+    const prevAvg = Number(product.averageRating || 0);
+    const prevCount = Number(product.ratingsCount || 0);
+    let newAvg;
+    let newCount = prevCount;
+    const sum = prevAvg * prevCount;
+    if (existingIdx >= 0) {
+      const prevUserRating = Number(product.ratings[existingIdx].rating || 0);
+      const newSum = sum - prevUserRating + value;
+      newAvg = newSum / Math.max(prevCount, 1);
+      // Update existing rating record
+      product.ratings[existingIdx].rating = value;
+      if (comment !== undefined) product.ratings[existingIdx].comment = String(comment || '');
+      if (orderId) product.ratings[existingIdx].orderId = orderId;
+      product.ratings[existingIdx].createdAt = new Date();
+    } else {
+      const newSum = sum + value;
+      newCount = prevCount + 1;
+      newAvg = newSum / newCount;
+      product.ratings.push({ userId: req.user.userId, orderId: orderId || null, rating: value, comment: String(comment || '') });
+    }
+
+    product.averageRating = Math.round(newAvg * 10) / 10;
+    product.ratingsCount = newCount;
+
+    await product.save();
+
+    return res.json({
+      success: true,
+      data: {
+        productId: product._id,
+        averageRating: product.averageRating,
+        ratingsCount: product.ratingsCount
+      }
+    });
+  } catch (error) {
+    console.error('Error submitting rating:', error);
+    res.status(500).json({ success: false, message: 'Error submitting rating', error: error.message });
   }
 });
 

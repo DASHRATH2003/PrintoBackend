@@ -88,6 +88,30 @@ const productSchema = new mongoose.Schema({
     default: true
   },
 
+  // Rating summary fields
+  averageRating: {
+    type: Number,
+    min: 0,
+    max: 5,
+    default: 0
+  },
+  ratingsCount: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
+  // Per-user ratings for delivery validation and duplicate prevention
+  ratings: {
+    type: [{
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+      orderId: { type: String, required: false },
+      rating: { type: Number, min: 1, max: 5, required: true },
+      comment: { type: String, default: '' },
+      createdAt: { type: Date, default: Date.now }
+    }],
+    default: []
+  },
+
   // Audit fields
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -116,6 +140,7 @@ const productSchema = new mongoose.Schema({
 // Basic indexes for performance
 productSchema.index({ category: 1, isActive: 1 });
 productSchema.index({ name: 'text', description: 'text' });
+productSchema.index({ averageRating: 1 });
 
 const Product = mongoose.model('Product', productSchema);
 export default Product;

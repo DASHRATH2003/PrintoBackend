@@ -257,16 +257,28 @@ export const forgotPassword = async (req, res) => {
     if (!email) {
       return res.status(400).json({ message: 'Email is required' });
     }
-    const user = await User.findOne({ email });
-    if (!user) {
+
+    // First: try to find seller by email
+    let accountType = null;
+    let accountDoc = await Seller.findOne({ email });
+    if (accountDoc) {
+      accountType = 'seller';
+    } else {
+      // Fallback: find regular user
+      accountDoc = await User.findOne({ email });
+      if (accountDoc) accountType = 'user';
+    }
+
+    if (!accountDoc) {
       // For security, respond success even if email not found
       return res.json({ message: 'If the email exists, a reset link has been sent' });
     }
+
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 1000 * 60 * 30); // 30 minutes
-    user.resetPasswordToken = token;
-    user.resetPasswordExpires = expires;
-    await user.save();
+    accountDoc.resetPasswordToken = token;
+    accountDoc.resetPasswordExpires = expires;
+    await accountDoc.save();
 
     const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
     const resetUrl = `${FRONTEND_URL}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
@@ -280,11 +292,11 @@ export const forgotPassword = async (req, res) => {
           to: email,
           subject: 'Reset your L-Mart password',
           html: `<p>Hello,</p>
-                 <p>You requested a password reset. Click the link below to set a new password. This link expires in 30 minutes.</p>
+                 <p>You requested a password reset for your ${accountType} account. Click the link below to set a new password. This link expires in 30 minutes.</p>
                  <p><a href="${resetUrl}" target="_blank" rel="noopener">Reset Password</a></p>
                  <p>If you did not request this, you can safely ignore this email.</p>`
         });
-        console.log('✉️ Reset email sent:', { to: email, messageId: info?.messageId, resetUrl });
+        console.log('✉️ Reset email sent:', { to: email, messageId: info?.messageId, resetUrl, accountType });
       } catch (smtpError) {
         console.error('❌ SMTP send failed:', smtpError?.response || smtpError?.message || smtpError);
       }
@@ -311,19 +323,29 @@ export const resetPassword = async (req, res) => {
     if (!email || !token || !password) {
       return res.status(400).json({ message: 'Email, token, and new password are required' });
     }
-    const user = await User.findOne({ email, resetPasswordToken: token });
-    if (!user) {
+
+    // Try seller first to mirror login logic
+    let accountType = 'seller';
+    let accountDoc = await Seller.findOne({ email, resetPasswordToken: token });
+    if (!accountDoc) {
+      // Fallback to regular user
+      accountType = 'user';
+      accountDoc = await User.findOne({ email, resetPasswordToken: token });
+    }
+
+    if (!accountDoc) {
       return res.status(400).json({ message: 'Invalid reset token' });
     }
-    if (!user.resetPasswordExpires || user.resetPasswordExpires < new Date()) {
+    if (!accountDoc.resetPasswordExpires || accountDoc.resetPasswordExpires < new Date()) {
       return res.status(400).json({ message: 'Reset token has expired' });
     }
+
     const hashed = await bcrypt.hash(password, 10);
-    user.password = hashed;
-    user.resetPasswordToken = null;
-    user.resetPasswordExpires = null;
-    await user.save();
-    res.json({ message: 'Password has been reset successfully' });
+    accountDoc.password = hashed;
+    accountDoc.resetPasswordToken = null;
+    accountDoc.resetPasswordExpires = null;
+    await accountDoc.save();
+    res.json({ message: 'Password has been reset successfully', accountType });
   } catch (error) {
     console.error('Reset password error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

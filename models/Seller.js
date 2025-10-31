@@ -5,6 +5,9 @@ const sellerSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  // Password reset fields for seller
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date },
   sellerName: { type: String },
   parentSeller: { type: mongoose.Schema.Types.ObjectId, ref: 'Seller', default: null },
   sellerHierarchyLevel: { type: Number, default: 0 },
