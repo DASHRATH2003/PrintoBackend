@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import CategoryCommission from '../models/CategoryCommission.js';
+import { sendNewOrderNotificationToAdmin, sendOrderConfirmationEmail } from '../utils/email.js';
 
 // Initialize Razorpay
 let razorpay = null;
@@ -438,6 +439,35 @@ const verifyPayment = async (req, res) => {
     const savedOrder = await newOrder.save();
     
     console.log('✅ Order saved successfully:', savedOrder._id);
+
+    // Send emails (non-blocking): customer confirmation and admin notification
+    try {
+      sendOrderConfirmationEmail(savedOrder)
+        .then(result => {
+          if (result.sent) {
+            console.log('✅ Order confirmation email sent to customer');
+          } else {
+            console.warn('⚠️ Failed to send order confirmation to customer:', result.error || result.reason);
+          }
+        })
+        .catch(err => {
+          console.error('❌ Error sending order confirmation to customer:', err?.message || err);
+        });
+
+      sendNewOrderNotificationToAdmin(savedOrder)
+        .then(result => {
+          if (result.sent) {
+            console.log('✅ Order notification email sent to admin');
+          } else {
+            console.warn('⚠️ Failed to send order notification email to admin:', result.error || result.reason);
+          }
+        })
+        .catch(err => {
+          console.error('❌ Error sending admin order notification:', err?.message || err);
+        });
+    } catch (emailErr) {
+      console.error('❌ Unexpected error scheduling emails:', emailErr?.message || emailErr);
+    }
 
     // Decrease product stock for each ordered item
     try {

@@ -3,7 +3,7 @@ import Product from '../models/Product.js';
 import CategoryCommission from '../models/CategoryCommission.js';
 import Notification from '../models/Notification.js';
 import Seller from '../models/Seller.js';
-import { sendNewOrderNotificationToAdmin, sendOrderStatusUpdateToCustomer } from '../utils/email.js';
+import { sendNewOrderNotificationToAdmin, sendOrderStatusUpdateToCustomer, sendOrderConfirmationEmail } from '../utils/email.js';
 
 // Create new order
 export const createOrder = async (req, res) => {
@@ -171,6 +171,23 @@ export const createOrder = async (req, res) => {
     const savedOrder = await newOrder.save();
     
     console.log('✅ Order saved successfully');
+
+    // Send order confirmation email to customer (non-blocking)
+    try {
+      sendOrderConfirmationEmail(savedOrder)
+        .then(result => {
+          if (result.sent) {
+            console.log('✅ Order confirmation email sent to customer');
+          } else {
+            console.warn('⚠️ Failed to send order confirmation to customer:', result.error || result.reason);
+          }
+        })
+        .catch(err => {
+          console.error('❌ Error sending order confirmation to customer:', err?.message || err);
+        });
+    } catch (emailErr) {
+      console.error('❌ Unexpected error scheduling customer confirmation email:', emailErr?.message || emailErr);
+    }
 
     // Decrease product stock for each ordered item
     try {

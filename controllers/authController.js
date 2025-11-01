@@ -5,6 +5,7 @@ import Seller from '../models/Seller.js';
 import Notification from '../models/Notification.js';
 import crypto from 'crypto';
 import { createTransporter, sendNewSellerNotificationToAdmin } from '../utils/email.js';
+import { sendEmailWithRetryGeneric } from '../utils/email.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -283,35 +284,26 @@ export const forgotPassword = async (req, res) => {
     const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
     const resetUrl = `${FRONTEND_URL}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
 
-    const transporter = createTransporter();
-    if (transporter) {
-      try {
-        await transporter.verify();
-        const fromAddress = (process.env.SMTP_FROM || (process.env.SMTP_USER ? `"L-Mart" <${process.env.SMTP_USER}>` : 'L-Mart <no-reply@example.com>')).trim();
-        const info = await transporter.sendMail({
-          from: fromAddress,
-          to: email,
-          subject: 'Reset your L-Mart password',
-          headers: {
-            'X-Priority': '1',
-            'X-MSMail-Priority': 'High',
-            'Importance': 'High'
-          },
-          html: `<p>Hello,</p>
-                 <p>You requested a password reset for your ${accountType} account. Click the link below to set a new password. This link expires in 30 minutes.</p>
-                 <p><a href="${resetUrl}" target="_blank" rel="noopener">Reset Password</a></p>
-                 <p>If you did not request this, you can safely ignore this email.</p>`
-        });
-        console.log('✉️ Reset email sent:', { to: email, messageId: info?.messageId, resetUrl, accountType });
-      } catch (smtpError) {
-        console.error('❌ SMTP send failed:', smtpError?.response || smtpError?.message || smtpError);
-      }
+    const fromAddress = (process.env.SENDGRID_FROM || process.env.SMTP_FROM || (process.env.SMTP_USER ? `"L-Mart" <${process.env.SMTP_USER}>` : 'L-Mart <no-reply@example.com>')).trim();
+    const html = `<p>Hello,</p>
+                  <p>You requested a password reset for your ${accountType} account. Click the link below to set a new password. This link expires in 30 minutes.</p>
+                  <p><a href="${resetUrl}" target="_blank" rel="noopener">Reset Password</a></p>
+                  <p>If you did not request this, you can safely ignore this email.</p>`;
+
+    const sendRes = await sendEmailWithRetryGeneric({
+      from: fromAddress,
+      to: email,
+      subject: 'Reset your L-Mart password',
+      html,
+    });
+    if (sendRes.sent) {
+      console.log('✉️ Reset email sent:', { to: email, messageId: sendRes?.messageId, resetUrl, accountType });
     } else {
-      console.warn('SMTP not configured; skipped sending reset email. Reset URL:', resetUrl);
+      console.warn('⚠️ Reset email not sent:', sendRes?.error || 'unknown');
     }
 
     // In development or when SMTP isn't configured, include resetUrl to allow manual testing
-    const includeResetUrl = process.env.NODE_ENV !== 'production' || !transporter;
+    const includeResetUrl = process.env.NODE_ENV !== 'production';
     res.json({ 
       message: 'If the email exists, a reset link has been sent',
       ...(includeResetUrl ? { resetUrl } : {})
@@ -361,15 +353,20 @@ export const resetPassword = async (req, res) => {
 // SMTP status: verify transporter configuration in runtime (diagnostic)
 export const smtpStatus = async (req, res) => {
   try {
+    const provider = process.env.SENDGRID_API_KEY ? 'sendgrid' : (process.env.SMTP_HOST ? 'smtp' : 'none');
     const transporter = createTransporter();
-    if (!transporter) {
-      return res.json({ configured: false, reason: 'smtp_not_configured' });
+    if (provider === 'none') {
+      return res.json({ configured: false, provider });
     }
     let verifyOk = false;
     let verifyError = null;
     try {
-      await transporter.verify();
-      verifyOk = true;
+      if (provider === 'smtp' && transporter) {
+        await transporter.verify();
+        verifyOk = true;
+      } else if (provider === 'sendgrid') {
+        verifyOk = true; // SendGrid does not support SMTP verify; assume key presence.
+      }
     } catch (err) {
       verifyOk = false;
       verifyError = err?.message || String(err);
@@ -377,12 +374,13 @@ export const smtpStatus = async (req, res) => {
 
     res.json({
       configured: true,
+      provider,
       verifyOk,
       verifyError,
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT),
       secure: String(process.env.SMTP_SECURE).toLowerCase() === 'true' || Number(process.env.SMTP_PORT) === 465,
-      from: (process.env.SMTP_FROM || process.env.SMTP_USER || '').toString()
+      from: (process.env.SENDGRID_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || '').toString()
     });
   } catch (error) {
     res.status(500).json({ message: 'smtp status error', error: error?.message || String(error) });

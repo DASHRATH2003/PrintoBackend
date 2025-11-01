@@ -1,8 +1,21 @@
 import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 
 
 // Cache transporter to avoid re-creating on every call
 let cachedTransporter = null;
+let sendgridInitialized = false;
+
+function getEmailProvider() {
+  if (process.env.SENDGRID_API_KEY) return 'sendgrid';
+  return 'smtp';
+}
+
+function getDefaultFrom() {
+  const fromSendgrid = process.env.SENDGRID_FROM;
+  const fromSmtp = process.env.SMTP_FROM || process.env.SMTP_USER;
+  return (fromSendgrid || fromSmtp || 'no-reply@localhost').trim();
+}
 
 function createTransporter() {
   if (cachedTransporter) return cachedTransporter;
@@ -34,6 +47,51 @@ function createTransporter() {
 
   cachedTransporter = transporter;
   return transporter;
+}
+
+async function sendEmailWithRetryGeneric(mailOptions, maxRetries = 3) {
+  const provider = getEmailProvider();
+  let lastError;
+
+  // Normalize from
+  const normalized = {
+    from: mailOptions.from || getDefaultFrom(),
+    to: mailOptions.to,
+    subject: mailOptions.subject,
+    html: mailOptions.html,
+  };
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (provider === 'sendgrid') {
+        if (!sendgridInitialized) {
+          sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+          sendgridInitialized = true;
+        }
+        const [res] = await sgMail.send(normalized);
+        const messageId = res?.headers?.['x-message-id'] || res?.headers?.['x-sendgrid-message-id'] || undefined;
+        return { sent: true, messageId: messageId || 'sendgrid' };
+      } else {
+        const transporter = createTransporter();
+        if (!transporter) {
+          return { sent: false, error: 'smtp_not_configured' };
+        }
+        const info = await transporter.sendMail(normalized);
+        return { sent: true, messageId: info?.messageId };
+      }
+    } catch (error) {
+      lastError = error;
+      const sgDetails = error?.response?.body?.errors ? JSON.stringify(error.response.body.errors) : null;
+      console.error(`❌ Email send failed (provider=${provider}, attempt=${attempt})`, error?.message || error);
+      if (sgDetails) console.error('SendGrid details:', sgDetails);
+      // Exponential backoff between attempts
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+  return { sent: false, error: lastError?.message || 'Unknown email error' };
 }
 
 function formatINR(amount) {
@@ -161,30 +219,23 @@ function buildEmailHtml(order) {
 
 export async function sendOrderConfirmationEmail(order) {
   try {
-    const transporter = createTransporter();
     const toEmail = sanitize(order?.customerEmail);
-
-    if (!transporter) {
-      return { sent: false, reason: 'smtp_not_configured' };
-    }
 
     if (!toEmail) {
       console.warn('⚠️ No customerEmail on order; skipping email. Order id:', order?._id || order?.orderId);
       return { sent: false, reason: 'missing_recipient' };
     }
 
-    const fromName = (process.env.SMTP_FROM || 'L-Mart <no-reply@lmart.local>').trim();
+    const fromName = getDefaultFrom();
     const subject = `Order Confirmed • ${sanitize(order?.orderId) || order?._id}`;
     const html = buildEmailHtml(order);
 
-    const info = await transporter.sendMail({
+    return await sendEmailWithRetryGeneric({
       from: fromName,
       to: toEmail,
       subject,
       html,
     });
-
-    return { sent: true, messageId: info?.messageId };
   } catch (error) {
     console.error('❌ Failed to send order confirmation email:', error?.message || error);
     return { sent: false, error: error?.message || String(error) };
@@ -194,12 +245,6 @@ export async function sendOrderConfirmationEmail(order) {
 // Send admin notification for new seller registration
 export async function sendNewSellerNotificationToAdmin(sellerData) {
   try {
-    const transporter = createTransporter();
-    if (!transporter) {
-      console.warn('⚠️ Email transporter not available. Skipping admin notification.');
-      return { sent: false, error: 'Email not configured' };
-    }
-
     const adminEmail = process.env.ADMIN_ORDER_EMAIL || process.env.SMTP_USER;
     const subject = 'New Seller Registration - Action Required';
     
@@ -270,15 +315,12 @@ export async function sendNewSellerNotificationToAdmin(sellerData) {
       </html>
     `;
 
-    const info = await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    return await sendEmailWithRetryGeneric({
+      from: getDefaultFrom(),
       to: adminEmail,
       subject,
       html,
     });
-
-    console.log('✅ Admin notification sent for new seller:', sellerData.email);
-    return { sent: true, messageId: info?.messageId };
   } catch (error) {
     console.error('❌ Failed to send admin notification:', error?.message || error);
     return { sent: false, error: error?.message || String(error) };
@@ -288,12 +330,6 @@ export async function sendNewSellerNotificationToAdmin(sellerData) {
 // Send new order notification to admin
 export async function sendNewOrderNotificationToAdmin(order) {
   try {
-    const transporter = createTransporter();
-    if (!transporter) {
-      console.warn('⚠️ No transporter available. Skipping order notification email.');
-      return { sent: false, error: 'No transporter configured' };
-    }
-
     const adminEmail = process.env.ADMIN_ORDER_EMAIL || process.env.SMTP_USER;
     
     // Build items table for email
@@ -445,18 +481,13 @@ export async function sendNewOrderNotificationToAdmin(order) {
       </html>
     `;
 
-    const mailOptions = {
-      from: (process.env.SMTP_FROM || `"L-Mart Admin" <${process.env.SMTP_USER}>`).trim(),
+    console.log(`📧 Sending new order notification to admin: ${adminEmail}`);
+    return await sendEmailWithRetryGeneric({
+      from: getDefaultFrom(),
       to: adminEmail,
       subject: `🎉 New Order Received - ${order.orderId} (${formatINR(order.total)})`,
       html: emailHtml,
-    };
-
-    console.log(`📧 Sending new order notification to admin: ${adminEmail}`);
-    const result = await transporter.sendMail(mailOptions);
-    console.log('✅ Order notification email sent successfully:', result.messageId);
-    
-    return { sent: true, messageId: result.messageId };
+    });
   } catch (error) {
     console.error('❌ Failed to send order notification to admin:', error?.message || error);
     return { sent: false, error: error?.message || String(error) };
@@ -466,12 +497,6 @@ export async function sendNewOrderNotificationToAdmin(order) {
 // Send order status update notification to customer
 export async function sendOrderStatusUpdateToCustomer(order, newStatus, oldStatus) {
   try {
-    const transporter = createTransporter();
-    if (!transporter) {
-      console.warn('⚠️ No transporter available. Skipping customer status notification email.');
-      return { sent: false, error: 'No transporter configured' };
-    }
-
     // Status display mapping
     const statusDisplay = {
       'pending': { text: 'Pending', color: '#f59e0b', emoji: '⏳', bgColor: '#fef3c7' },
@@ -633,18 +658,13 @@ export async function sendOrderStatusUpdateToCustomer(order, newStatus, oldStatu
       </html>
     `;
 
-    const mailOptions = {
-      from: `"L-Mart" <${process.env.SMTP_USER}>`,
+    console.log(`📧 Sending order status update to customer: ${order.customerEmail}`);
+    return await sendEmailWithRetryGeneric({
+      from: getDefaultFrom(),
       to: order.customerEmail,
       subject: `${statusInfo.emoji} Order ${statusInfo.text} - ${order.orderId}`,
       html: emailHtml,
-    };
-
-    console.log(`📧 Sending order status update to customer: ${order.customerEmail}`);
-    const result = await transporter.sendMail(mailOptions);
-    console.log('✅ Customer status notification email sent successfully:', result.messageId);
-    
-    return { sent: true, messageId: result.messageId };
+    });
   } catch (error) {
     console.error('❌ Failed to send status update to customer:', error?.message || error);
     return { sent: false, error: error?.message || String(error) };
@@ -652,5 +672,5 @@ export async function sendOrderStatusUpdateToCustomer(order, newStatus, oldStatu
 }
 
 // Export transporter creator for use in other modules
-export { createTransporter };
+export { createTransporter, sendEmailWithRetryGeneric };
 
