@@ -200,7 +200,7 @@ export async function sendNewSellerNotificationToAdmin(sellerData) {
       return { sent: false, error: 'Email not configured' };
     }
 
-    const adminEmail = 'dashrathsirt34@gmail.com';
+    const adminEmail = 'dashrathkumardbg2003@gmail.com';
     const subject = 'New Seller Registration - Action Required';
     
     const html = `
