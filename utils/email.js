@@ -200,7 +200,7 @@ export async function sendNewSellerNotificationToAdmin(sellerData) {
       return { sent: false, error: 'Email not configured' };
     }
 
-    const adminEmail = 'dashrathkumardbg2003@gmail.com';
+    const adminEmail = process.env.ADMIN_ORDER_EMAIL || process.env.SMTP_USER;
     const subject = 'New Seller Registration - Action Required';
     
     const html = `
@@ -271,7 +271,7 @@ export async function sendNewSellerNotificationToAdmin(sellerData) {
     `;
 
     const info = await transporter.sendMail({
-      from: process.env.SMTP_USER,
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to: adminEmail,
       subject,
       html,
@@ -294,7 +294,7 @@ export async function sendNewOrderNotificationToAdmin(order) {
       return { sent: false, error: 'No transporter configured' };
     }
 
-    const adminEmail = 'dashrathsirt34@gmail.com';
+    const adminEmail = process.env.ADMIN_ORDER_EMAIL || process.env.SMTP_USER;
     
     // Build items table for email
     const itemsHtml = order.items.map(item => `
@@ -446,7 +446,7 @@ export async function sendNewOrderNotificationToAdmin(order) {
     `;
 
     const mailOptions = {
-      from: `"L-Mart Admin" <${process.env.SMTP_USER}>`,
+      from: (process.env.SMTP_FROM || `"L-Mart Admin" <${process.env.SMTP_USER}>`).trim(),
       to: adminEmail,
       subject: `🎉 New Order Received - ${order.orderId} (${formatINR(order.total)})`,
       html: emailHtml,
